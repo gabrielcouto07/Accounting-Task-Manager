@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set page_title = "Novo chamado" %}
+{% set page_subtitle = "Solicitacao interna para apoio de TI" %}
+{% set active_page = "chamados" %}
+{% include "partials/page_header.html" %}
+
+<div id="app">
+  <div id="form-wrap" class="visible">
+    <h2>Abrir chamado</h2>
+    <form action="/chamados/novo" method="post">
+      <div class="form-row">
+        <div class="form-group" style="flex:2;min-width:220px">
+          <label for="ch-titulo">Titulo</label>
+          <input id="ch-titulo" name="titulo" type="text" maxlength="180" required>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label for="ch-descricao">Descricao</label>
+          <textarea id="ch-descricao" name="descricao" rows="7" required></textarea>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-primary" type="submit">Abrir chamado</button>
+        <button class="btn-secondary" type="button" onclick="window.location.href='/chamados'">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

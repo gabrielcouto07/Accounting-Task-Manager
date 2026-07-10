@@ -409,6 +409,23 @@ def chamados_page(
             "chamados": crud.get_chamados(db, selected_status or None),
             "statuses": CHAMADO_STATUSES,
             "selected_status": selected_status,
+            "logic": logic,
+            "flashes": _pop_flashes(request),
+        },
+    )
+
+
+@app.get("/chamados/novo", response_class=HTMLResponse)
+def novo_chamado_page(
+    request: Request,
+    user: models.User = Depends(_require_admin_user),
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="chamado_form.html",
+        context={
+            "user": user,
+            "logic": logic,
             "flashes": _pop_flashes(request),
         },
     )
@@ -452,6 +469,7 @@ def chamado_detail_page(
             "user": user,
             "chamado": chamado,
             "statuses": CHAMADO_STATUSES,
+            "logic": logic,
             "flashes": _pop_flashes(request),
         },
     )

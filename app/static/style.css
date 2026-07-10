@@ -138,6 +138,8 @@ button, select, input, textarea { font-family: inherit; }
 #form-wrap { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 4px 16px rgba(0,0,0,.07); display:none; }
 #form-wrap.visible { display:block; }
 #form-wrap h2 { font-size:12px; font-weight:700; color:#1e3a5f; text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px; }
+.form-card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 4px 16px rgba(0,0,0,.07); display:block; }
+.form-card h2 { font-size:12px; font-weight:700; color:#1e3a5f; text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px; }
 .form-row { display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
 .form-group { flex:1; min-width:130px; }
 .form-group label { font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; display:block; margin-bottom:3px; }
@@ -149,6 +151,8 @@ button, select, input, textarea { font-family: inherit; }
 .btn-primary:hover { background:#162d4a; }
 .btn-secondary { padding:9px 14px; background:#f3f4f6; color:#6b7280; border:none; border-radius:8px; font-size:13px; cursor:pointer; }
 .btn-secondary:hover { background:#e5e7eb; }
+.btn-danger { padding:9px 14px; background:#fef2f2; color:#dc2626; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
+.btn-danger:hover { background:#fee2e2; }
 .tipo-toggle { display:flex; border:1px solid #d1d5db; border-radius:7px; overflow:hidden; }
 .tipo-toggle button { flex:1; padding:8px 6px; border:none; background:#fff; font-size:12px; font-weight:600; cursor:pointer; color:#6b7280; transition:all .15s; }
 .tipo-toggle button.active-rotina { background:#1e3a5f; color:#fff; }
@@ -180,6 +184,9 @@ input[type=date]:disabled { background:#f3f4f6; color:#9ca3af; cursor:not-allowe
 #result-count { font-size:12px; color:#6b7280; margin-bottom:8px; font-weight:500; }
 .task-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px; margin-bottom:7px; border-left-width:4px; transition:box-shadow .15s; overflow:hidden; }
 .task-card:hover { box-shadow:0 2px 10px rgba(0,0,0,.08); }
+.chamado-card { border-left-color:#2563eb; }
+.chamado-detail-card { border-left-color:#1e3a5f; }
+.user-card { border-left-color:#1e3a5f; }
 .task-card.concluida { background:#fafafa; opacity:.78; }
 .task-card.urgente { border-color:#fca5a5!important; }
 .task-main { display:flex; align-items:flex-start; gap:12px; padding:13px 15px; }
@@ -189,6 +196,10 @@ input[type=date]:disabled { background:#f3f4f6; color:#9ca3af; cursor:not-allowe
 .task-title.riscado { text-decoration:line-through; color:#9ca3af; }
 .task-badges { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
 .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
+.chamado-status-aberto { background:#eff6ff; color:#1d4ed8; }
+.chamado-status-em-andamento { background:#fff7ed; color:#ea580c; }
+.chamado-status-resolvido { background:#f0fdf4; color:#16a34a; }
+.muted-text { font-weight:400; color:#6b7280; font-size:12px; }
 .task-obs { font-size:12px; color:#9ca3af; margin-top:5px; font-style:italic; }
 .task-meta { font-size:11px; color:#6b7280; margin-top:4px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .task-conclusao-group { display:inline-flex; align-items:center; gap:3px; }
@@ -236,6 +247,9 @@ input[type=date]:disabled { background:#f3f4f6; color:#9ca3af; cursor:not-allowe
 .g-extra      { background:#f5f3ff; color:#7c3aed; border-color:#ddd6fe; }
 .g-ativas     { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
 .g-concluidas { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
+
+.admin-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; align-items:start; }
+.detail-value { font-size:13px; font-weight:700; color:#111827; }
 
 /* Edit Subtask Modal */
 #edit-st-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1100; align-items:center; justify-content:center; }

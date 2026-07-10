@@ -1,0 +1,44 @@
+<div id="header">
+  <div id="header-left">
+    <h1>{{ page_title }}</h1>
+    <p id="header-sub">{{ page_subtitle }}</p>
+  </div>
+
+  <div id="header-right">
+    {% if user %}
+      <div class="hdr-user-pill">
+        <div id="hdr-avatar" class="hdr-avatar" style="background: {{ user.cor }};">
+          {{ logic.initials(user.nome) if logic is defined else user.nome[:2].upper() }}
+        </div>
+        <div>
+          <div id="hdr-uname" class="hdr-uname">{{ user.nome }}</div>
+          <div id="hdr-urole" class="hdr-urole">
+            {% if user.perfil == "gerente" %}
+              Gerente
+            {% elif categories is defined and user.categoria %}
+              Equipe · {{ categories[user.categoria].label }}
+            {% else %}
+              Equipe
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if user.perfil == "gerente" %}
+        {% if active_page != "chamados" %}
+          <button id="btn-chamados" onclick="window.location.href='/chamados'">Chamados</button>
+        {% endif %}
+        {% if active_page != "users" %}
+          <button id="btn-manage-users" onclick="window.location.href='/admin/users'">Usuarios</button>
+        {% endif %}
+      {% endif %}
+
+      {% if active_page == "dashboard" %}
+        <button id="btn-novo" onclick="toggleForm()">+ Nova obrigacao</button>
+      {% else %}
+        <button id="btn-dashboard" onclick="window.location.href='/dashboard'">Dashboard</button>
+      {% endif %}
+      <button id="btn-logout" onclick="window.location.href='/logout'">Sair</button>
+    {% endif %}
+  </div>
+</div>
