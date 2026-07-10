@@ -7,6 +7,13 @@
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 </head>
 <body>
+  {% if flashes %}
+    <div class="server-flashes">
+      {% for message in flashes %}
+        <div class="server-flash">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
   {% block content %}{% endblock %}
 
   <div id="save-indicator" class="save-indicator">✓ Salvo</div>

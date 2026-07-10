@@ -31,7 +31,8 @@
     </div>
 
     {% if user.perfil == "gerente" %}
-      <button id="btn-manage-users" onclick="openUsersModal()">👥 Usuários</button>
+      <button id="btn-chamados" onclick="window.location.href='/chamados'">Chamados</button>
+      <button id="btn-manage-users" onclick="window.location.href='/admin/users'">Usuários</button>
     {% endif %}
     <button id="btn-novo" onclick="toggleForm()">+ Nova obrigação</button>
     <button id="btn-logout" onclick="window.location.href='/logout'">Sair</button>

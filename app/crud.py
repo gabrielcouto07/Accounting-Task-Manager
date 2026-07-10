@@ -30,6 +30,33 @@ def _ensure_column(db: Session, table: str, columns: set[str], name: str, ddl: s
 
 
 def ensure_schema(db: Session) -> None:
+    db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS chamados (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titulo TEXT NOT NULL,
+                descricao TEXT NOT NULL,
+                solicitante TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Aberto',
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    chamado_columns = _column_names(db, "chamados")
+    if chamado_columns:
+        for name, ddl in [
+            ("titulo", "titulo TEXT NOT NULL DEFAULT ''"),
+            ("descricao", "descricao TEXT NOT NULL DEFAULT ''"),
+            ("solicitante", "solicitante TEXT NOT NULL DEFAULT ''"),
+            ("status", "status TEXT NOT NULL DEFAULT 'Aberto'"),
+            ("criado_em", "criado_em DATETIME DEFAULT CURRENT_TIMESTAMP"),
+            ("atualizado_em", "atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP"),
+        ]:
+            _ensure_column(db, "chamados", chamado_columns, name, ddl)
+
     task_columns = _column_names(db, "tasks")
     if task_columns:
         for name, ddl in [
@@ -113,6 +140,15 @@ def create_user(db: Session, data: schemas.UserCreate, cor: str) -> models.User:
     return user
 
 
+def change_user_password(db: Session, user_id: str, senha: str) -> bool:
+    user = get_user(db, user_id)
+    if not user:
+        return False
+    user.senha = security.hash_password(senha)
+    db.commit()
+    return True
+
+
 def delete_user(db: Session, user_id: str) -> bool:
     user = get_user(db, user_id)
     if not user:
@@ -120,6 +156,49 @@ def delete_user(db: Session, user_id: str) -> bool:
     db.delete(user)
     db.commit()
     return True
+
+
+def get_chamados(db: Session, status: str | None = None) -> list[models.Chamado]:
+    query = db.query(models.Chamado)
+    if status:
+        query = query.filter(models.Chamado.status == status)
+    return query.order_by(models.Chamado.id.desc()).all()
+
+
+def get_chamado(db: Session, chamado_id: int) -> models.Chamado | None:
+    return db.query(models.Chamado).filter(models.Chamado.id == chamado_id).first()
+
+
+def create_chamado(
+    db: Session,
+    *,
+    titulo: str,
+    descricao: str,
+    solicitante: str,
+) -> models.Chamado:
+    chamado = models.Chamado(
+        titulo=titulo.strip(),
+        descricao=descricao.strip(),
+        solicitante=solicitante,
+    )
+    db.add(chamado)
+    db.commit()
+    db.refresh(chamado)
+    return chamado
+
+
+def update_chamado_status(db: Session, chamado_id: int, status: str) -> models.Chamado | None:
+    chamado = get_chamado(db, chamado_id)
+    if not chamado:
+        return None
+    chamado.status = status
+    db.execute(
+        text("UPDATE chamados SET atualizado_em = CURRENT_TIMESTAMP WHERE id = :id"),
+        {"id": chamado_id},
+    )
+    db.commit()
+    db.refresh(chamado)
+    return chamado
 
 
 def _tasks_query(db: Session):

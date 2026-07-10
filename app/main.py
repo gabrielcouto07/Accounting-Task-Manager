@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
 from datetime import date
+from email.mime.text import MIMEText
+import logging
 import os
 from pathlib import Path
+import smtplib
 from typing import Any
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
@@ -36,10 +39,86 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+logger = logging.getLogger(__name__)
+CHAMADO_STATUSES = ["Aberto", "Em Andamento", "Resolvido"]
+CHAMADO_RECIPIENTS = [
+    "apoio.informatica@scientificdental.com",
+    "informatica@scientificdental.com",
+]
 
 
 def _redirect(path: str) -> RedirectResponse:
     return RedirectResponse(path, status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _flash(request: Request, message: str) -> None:
+    request.session.setdefault("_flash", []).append(message)
+
+
+def _pop_flashes(request: Request) -> list[str]:
+    return request.session.pop("_flash", [])
+
+
+def _redirect_with_flash(request: Request, path: str, message: str) -> RedirectResponse:
+    _flash(request, message)
+    return _redirect(path)
+
+
+def _require_admin_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> models.User:
+    user = auth.get_current_user(request, db)
+    if user.perfil != "gerente":
+        _flash(request, "Acesso negado")
+        raise HTTPException(
+            status_code=status.HTTP_303_SEE_OTHER,
+            detail="Acesso negado",
+            headers={"Location": "/dashboard"},
+        )
+    return user
+
+
+def _smtp_port() -> int:
+    try:
+        return int(os.getenv("SMTP_PORT", "587"))
+    except ValueError:
+        logger.warning("SMTP_PORT invalido; usando porta 587")
+        return 587
+
+
+def _send_chamado_email(chamado: models.Chamado) -> None:
+    smtp_user = os.getenv("SMTP_USER", "").strip()
+    if not smtp_user:
+        logger.warning("SMTP_USER nao configurado; notificacao de chamado ignorada.")
+        return
+
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_password = os.getenv("SMTP_PASSWORD", "")
+    smtp_from = os.getenv("SMTP_FROM", smtp_user)
+    subject = f"[Chamado #{chamado.id}] {chamado.titulo}"
+    body = (
+        "Novo chamado aberto no Gerenciado Contabil.\n\n"
+        f"Titulo: {chamado.titulo}\n"
+        f"Solicitante: {chamado.solicitante}\n"
+        "Descricao:\n"
+        f"{chamado.descricao}\n\n"
+        "Acesse o sistema para visualizar e atualizar o status.\n"
+    )
+
+    message = MIMEText(body, "plain", "utf-8")
+    message["From"] = smtp_from
+    message["To"] = ", ".join(CHAMADO_RECIPIENTS)
+    message["Subject"] = subject
+
+    try:
+        with smtplib.SMTP(smtp_host, _smtp_port()) as smtp:
+            smtp.starttls()
+            if smtp_password:
+                smtp.login(smtp_user, smtp_password)
+            smtp.sendmail(smtp_from, CHAMADO_RECIPIENTS, message.as_string())
+    except Exception:
+        logger.exception("Falha ao enviar notificacao do chamado %s", chamado.id)
 
 
 def _date_or_none(value: Any) -> date | None:
@@ -124,6 +203,7 @@ def login_page(
         context={
             "users": crud.get_users(db),
             "error": False,
+            "flashes": _pop_flashes(request),
         },
     )
 
@@ -143,6 +223,7 @@ def do_login(
             context={
                 "users": crud.get_users(db),
                 "error": True,
+                "flashes": _pop_flashes(request),
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
@@ -215,8 +296,181 @@ def dashboard_page(
             "all_users": crud.get_users(db) if user.perfil == "gerente" else [],
             "tasks_json": [_serialize_task(task) for task in tasks],
             "logic": logic,
+            "flashes": _pop_flashes(request),
         },
     )
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_users.html",
+        context={
+            "user": user,
+            "users": crud.get_users(db),
+            "perfis": ["gerente", "equipe"],
+            "categories": logic.CATEGORIES,
+            "logic": logic,
+            "flashes": _pop_flashes(request),
+        },
+    )
+
+
+@app.post("/admin/users/change-password")
+def admin_change_user_password(
+    request: Request,
+    user_id: str = Form(...),
+    senha: str = Form(...),
+    confirmar_senha: str = Form(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    target = crud.get_user(db, user_id)
+    if not target:
+        return _redirect_with_flash(request, "/admin/users", "Usuario nao encontrado")
+    if not senha:
+        return _redirect_with_flash(request, "/admin/users", "Informe a nova senha")
+    if senha != confirmar_senha:
+        return _redirect_with_flash(request, "/admin/users", "As senhas nao conferem")
+
+    crud.change_user_password(db, user_id, senha)
+    return _redirect_with_flash(request, "/admin/users", "Senha alterada com sucesso")
+
+
+@app.post("/admin/users/create")
+def admin_create_user(
+    request: Request,
+    username: str = Form(...),
+    senha: str = Form(...),
+    confirmar_senha: str = Form(...),
+    perfil: str = Form(...),
+    categoria: str | None = Form(None),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    user_id = username.strip()
+    if not user_id:
+        return _redirect_with_flash(request, "/admin/users", "Informe o usuario")
+    if crud.get_user(db, user_id):
+        return _redirect_with_flash(request, "/admin/users", "Usuario ja existe")
+    if not senha:
+        return _redirect_with_flash(request, "/admin/users", "Informe a senha")
+    if senha != confirmar_senha:
+        return _redirect_with_flash(request, "/admin/users", "As senhas nao conferem")
+    if perfil not in {"gerente", "equipe"}:
+        return _redirect_with_flash(request, "/admin/users", "Perfil invalido")
+    if perfil == "equipe" and categoria not in logic.CATEGORIES:
+        return _redirect_with_flash(request, "/admin/users", "Categoria obrigatoria para usuario de equipe")
+
+    cor = logic.AVATAR_COLORS[len(crud.get_users(db)) % len(logic.AVATAR_COLORS)]
+    data = schemas.UserCreate(
+        id=user_id,
+        nome=user_id,
+        senha=senha,
+        perfil=perfil,
+        categoria=None if perfil == "gerente" else categoria,
+    )
+    crud.create_user(db, data, cor)
+    return _redirect_with_flash(request, "/admin/users", "Usuario criado com sucesso")
+
+
+@app.post("/admin/users/delete")
+def admin_delete_user(
+    request: Request,
+    user_id: str = Form(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    if user_id == user.id:
+        return _redirect_with_flash(request, "/admin/users", "Nao e possivel remover o usuario logado")
+    if not crud.delete_user(db, user_id):
+        return _redirect_with_flash(request, "/admin/users", "Usuario nao encontrado")
+    return _redirect_with_flash(request, "/admin/users", "Usuario removido com sucesso")
+
+
+@app.get("/chamados", response_class=HTMLResponse)
+def chamados_page(
+    request: Request,
+    status_chamado: str = "",
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    selected_status = status_chamado if status_chamado in CHAMADO_STATUSES else ""
+    return templates.TemplateResponse(
+        request=request,
+        name="chamados.html",
+        context={
+            "user": user,
+            "chamados": crud.get_chamados(db, selected_status or None),
+            "statuses": CHAMADO_STATUSES,
+            "selected_status": selected_status,
+            "flashes": _pop_flashes(request),
+        },
+    )
+
+
+@app.post("/chamados/novo")
+def novo_chamado(
+    request: Request,
+    titulo: str = Form(...),
+    descricao: str = Form(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    if not titulo.strip() or not descricao.strip():
+        return _redirect_with_flash(request, "/chamados", "Informe titulo e descricao do chamado")
+
+    chamado = crud.create_chamado(
+        db,
+        titulo=titulo,
+        descricao=descricao,
+        solicitante=user.id,
+    )
+    _send_chamado_email(chamado)
+    return _redirect_with_flash(request, "/chamados", "Chamado aberto com sucesso")
+
+
+@app.get("/chamados/{chamado_id}", response_class=HTMLResponse)
+def chamado_detail_page(
+    chamado_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    chamado = crud.get_chamado(db, chamado_id)
+    if not chamado:
+        raise HTTPException(status_code=404, detail="Chamado nao encontrado")
+    return templates.TemplateResponse(
+        request=request,
+        name="chamado_detail.html",
+        context={
+            "user": user,
+            "chamado": chamado,
+            "statuses": CHAMADO_STATUSES,
+            "flashes": _pop_flashes(request),
+        },
+    )
+
+
+@app.post("/chamados/{chamado_id}/status")
+def update_chamado_status(
+    chamado_id: int,
+    request: Request,
+    status_chamado: str = Form(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    if status_chamado not in CHAMADO_STATUSES:
+        return _redirect_with_flash(request, f"/chamados/{chamado_id}", "Status invalido")
+    chamado = crud.update_chamado_status(db, chamado_id, status_chamado)
+    if not chamado:
+        raise HTTPException(status_code=404, detail="Chamado nao encontrado")
+    return _redirect_with_flash(request, f"/chamados/{chamado_id}", "Status atualizado")
 
 
 def _require_task_access(db: Session, task_id: int, user: models.User) -> models.Task:

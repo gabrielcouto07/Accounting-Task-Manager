@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="header">
+  <div id="header-left">
+    <h1>Gerenciar usuarios</h1>
+    <p id="header-sub">Acesso restrito ao gerente</p>
+  </div>
+  <div id="header-right">
+    <button id="btn-chamados" onclick="window.location.href='/chamados'">Chamados</button>
+    <button id="btn-dashboard" onclick="window.location.href='/dashboard'">Dashboard</button>
+    <button id="btn-logout" onclick="window.location.href='/logout'">Sair</button>
+  </div>
+</div>
+
+<div class="admin-shell">
+  <section class="admin-panel">
+    <h2>Alterar senha</h2>
+    <form action="/admin/users/change-password" method="post" class="admin-form">
+      <label for="pw-user">Usuario</label>
+      <select id="pw-user" name="user_id" required>
+        {% for u in users %}
+          <option value="{{ u.id }}">{{ u.nome }} ({{ u.id }})</option>
+        {% endfor %}
+      </select>
+
+      <label for="pw-new">Nova senha</label>
+      <input id="pw-new" name="senha" type="password" autocomplete="new-password" required>
+
+      <label for="pw-confirm">Confirmar senha</label>
+      <input id="pw-confirm" name="confirmar_senha" type="password" autocomplete="new-password" required>
+
+      <button class="btn-primary" type="submit">Alterar senha</button>
+    </form>
+  </section>
+
+  <section class="admin-panel">
+    <h2>Criar usuario</h2>
+    <form action="/admin/users/create" method="post" class="admin-form">
+      <label for="create-user">Usuario</label>
+      <input id="create-user" name="username" type="text" autocomplete="username" required>
+
+      <label for="create-pass">Senha</label>
+      <input id="create-pass" name="senha" type="password" autocomplete="new-password" required>
+
+      <label for="create-confirm">Confirmar senha</label>
+      <input id="create-confirm" name="confirmar_senha" type="password" autocomplete="new-password" required>
+
+      <label for="create-perfil">Perfil</label>
+      <select id="create-perfil" name="perfil" required>
+        {% for perfil in perfis %}
+          <option value="{{ perfil }}">{{ "Gerente" if perfil == "gerente" else "Equipe" }}</option>
+        {% endfor %}
+      </select>
+
+      <label for="create-categoria">Categoria</label>
+      <select id="create-categoria" name="categoria">
+        {% for key, cat in categories.items() %}
+          <option value="{{ key }}">{{ cat.label }}</option>
+        {% endfor %}
+      </select>
+
+      <button class="btn-primary" type="submit">Criar usuario</button>
+    </form>
+  </section>
+
+  <section class="admin-panel admin-panel-wide">
+    <h2>Usuarios cadastrados</h2>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Nome</th>
+            <th>Perfil</th>
+            <th>Categoria</th>
+            <th>Acao</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+            <tr>
+              <td>{{ u.id }}</td>
+              <td>{{ u.nome }}</td>
+              <td>{{ "Gerente" if u.perfil == "gerente" else "Equipe" }}</td>
+              <td>{{ categories[u.categoria].label if u.categoria else "-" }}</td>
+              <td>
+                {% if u.id == user.id %}
+                  <button class="btn-secondary" type="button" disabled>Atual</button>
+                {% else %}
+                  <form action="/admin/users/delete" method="post" onsubmit="return confirm('Remover este usuario?')">
+                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                    <button class="btn-danger" type="submit">Excluir</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

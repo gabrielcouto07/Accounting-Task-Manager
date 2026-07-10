@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Date, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text, text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -58,6 +58,18 @@ class Subtask(Base):
     data_conclusao = Column(String, nullable=True)
 
     task = relationship("Task", back_populates="subtarefas")
+
+
+class Chamado(Base):
+    __tablename__ = "chamados"
+
+    id = Column(Integer, primary_key=True, index=True)
+    titulo = Column(String, nullable=False)
+    descricao = Column(Text, nullable=False)
+    solicitante = Column(String, nullable=False)
+    status = Column(String, default="Aberto", server_default="Aberto", nullable=False)
+    criado_em = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=True)
+    atualizado_em = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=True)
 
 
 class AppMetadata(Base):

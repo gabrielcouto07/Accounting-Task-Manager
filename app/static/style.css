@@ -59,8 +59,48 @@ button, select, input, textarea { font-family: inherit; }
 #btn-novo:hover { background:#2563eb; }
 #btn-logout { padding:7px 12px; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; font-size:12px; cursor:pointer; }
 #btn-logout:hover { background:rgba(255,255,255,.2); }
+#btn-dashboard { padding:7px 12px; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; font-size:12px; cursor:pointer; }
+#btn-dashboard:hover { background:rgba(255,255,255,.2); }
 #btn-manage-users { padding:7px 12px; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; font-size:12px; cursor:pointer; }
 #btn-manage-users:hover { background:rgba(255,255,255,.2); }
+#btn-chamados { padding:7px 12px; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; font-size:12px; cursor:pointer; }
+#btn-chamados:hover { background:rgba(255,255,255,.2); }
+
+/* Server-rendered admin pages */
+.server-flashes { position:fixed; right:16px; top:16px; z-index:2500; display:grid; gap:8px; max-width:min(360px, calc(100vw - 32px)); }
+.server-flash { background:#1e3a5f; color:#fff; padding:10px 14px; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.18); font-size:12px; font-weight:600; }
+.admin-shell { max-width:920px; margin:0 auto; padding:20px 16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; align-items:start; }
+.admin-panel { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:18px; }
+.admin-panel-wide { grid-column:1 / -1; }
+.admin-panel h2 { font-size:12px; font-weight:700; color:#1e3a5f; text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px; }
+.admin-panel-head { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.admin-panel-head h2 { margin-bottom:0; }
+.admin-form { display:grid; gap:9px; }
+.admin-form label, .status-form label { font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; }
+.admin-form input, .admin-form select, .admin-form textarea, .inline-filter select, .status-form select {
+  width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:7px; font-size:13px; outline:none; background:#fff;
+}
+.admin-form textarea { resize:vertical; }
+.admin-form input:focus, .admin-form select:focus, .admin-form textarea:focus, .inline-filter select:focus, .status-form select:focus { border-color:#3b82f6; }
+.admin-table-wrap { overflow-x:auto; }
+.admin-table { width:100%; border-collapse:collapse; min-width:620px; }
+.admin-table th, .admin-table td { padding:9px 10px; border-bottom:1px solid #f3f4f6; text-align:left; font-size:12px; vertical-align:middle; }
+.admin-table th { color:#6b7280; text-transform:uppercase; letter-spacing:.04em; font-size:11px; }
+.admin-table form { margin:0; }
+.btn-danger { padding:7px 10px; background:#fef2f2; color:#dc2626; border:none; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; }
+.btn-danger:hover { background:#fee2e2; }
+.btn-secondary:disabled { opacity:.7; cursor:not-allowed; }
+.table-link { color:#2563eb; font-weight:600; text-decoration:none; }
+.table-link:hover { text-decoration:underline; }
+.status-pill { display:inline-flex; padding:3px 8px; background:#eff6ff; color:#1d4ed8; border-radius:20px; font-weight:700; font-size:11px; }
+.empty-cell { color:#9ca3af; text-align:center!important; padding:24px!important; }
+.detail-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:16px; }
+.detail-label { display:block; font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+.detail-grid strong { display:block; font-size:13px; color:#111827; }
+.detail-description { border-top:1px solid #f3f4f6; border-bottom:1px solid #f3f4f6; padding:14px 0; margin-bottom:14px; }
+.detail-description p { white-space:pre-wrap; font-size:13px; line-height:1.5; color:#374151; }
+.status-form { display:flex; gap:8px; align-items:end; flex-wrap:wrap; }
+.status-form select { max-width:220px; }
 
 /* ── CATEGORY TABS (manager view) ────────────── */
 #cat-tabs-wrap { background:#fff; border-bottom:1px solid #e5e7eb; }

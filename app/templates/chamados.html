@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="header">
+  <div id="header-left">
+    <h1>Chamados de TI</h1>
+    <p id="header-sub">Abertura e acompanhamento interno</p>
+  </div>
+  <div id="header-right">
+    <button id="btn-manage-users" onclick="window.location.href='/admin/users'">Usuarios</button>
+    <button id="btn-dashboard" onclick="window.location.href='/dashboard'">Dashboard</button>
+    <button id="btn-logout" onclick="window.location.href='/logout'">Sair</button>
+  </div>
+</div>
+
+<div class="admin-shell">
+  <section class="admin-panel">
+    <h2>Novo chamado</h2>
+    <form action="/chamados/novo" method="post" class="admin-form">
+      <label for="ch-titulo">Titulo</label>
+      <input id="ch-titulo" name="titulo" type="text" maxlength="180" required>
+
+      <label for="ch-descricao">Descricao</label>
+      <textarea id="ch-descricao" name="descricao" rows="7" required></textarea>
+
+      <button class="btn-primary" type="submit">Abrir chamado</button>
+    </form>
+  </section>
+
+  <section class="admin-panel admin-panel-wide">
+    <div class="admin-panel-head">
+      <h2>Chamados</h2>
+      <form action="/chamados" method="get" class="inline-filter">
+        <select name="status_chamado" onchange="this.form.submit()">
+          <option value="" {% if not selected_status %}selected{% endif %}>Todos os status</option>
+          {% for st in statuses %}
+            <option value="{{ st }}" {% if selected_status == st %}selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Titulo</th>
+            <th>Solicitante</th>
+            <th>Status</th>
+            <th>Criado em</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for chamado in chamados %}
+            <tr>
+              <td>#{{ chamado.id }}</td>
+              <td>{{ chamado.titulo }}</td>
+              <td>{{ chamado.solicitante }}</td>
+              <td><span class="status-pill">{{ chamado.status }}</span></td>
+              <td>{{ chamado.criado_em.strftime("%d/%m/%Y %H:%M") if chamado.criado_em else "-" }}</td>
+              <td><a class="table-link" href="/chamados/{{ chamado.id }}">Ver detalhes</a></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="empty-cell">Nenhum chamado encontrado.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
