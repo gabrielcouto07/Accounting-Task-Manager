@@ -1,0 +1,110 @@
+{
+  "source_db": "C:\\Users\\GABRIEL.CARDOSO\\Documents\\ERP\\Gerenciado Contabil\\backups\\legacy_sqlite\\20260708-164559.controle.db",
+  "generated_at": "2026-07-08T16:45:59",
+  "journal_mode": "wal",
+  "tables": {
+    "tasks": {
+      "type": "table",
+      "sql": "CREATE TABLE tasks (\n    id   INTEGER PRIMARY KEY,\n    data TEXT NOT NULL\n  )",
+      "row_count": 78,
+      "columns": [
+        {
+          "cid": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "data",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "indexes": []
+    },
+    "users": {
+      "type": "table",
+      "sql": "CREATE TABLE users (\n    id        TEXT PRIMARY KEY,\n    nome      TEXT NOT NULL,\n    senha     TEXT NOT NULL,\n    perfil    TEXT NOT NULL,\n    categoria TEXT,\n    cor       TEXT\n  )",
+      "row_count": 6,
+      "columns": [
+        {
+          "cid": 0,
+          "name": "id",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "nome",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 0
+        },
+        {
+          "cid": 2,
+          "name": "senha",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 0
+        },
+        {
+          "cid": 3,
+          "name": "perfil",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 0
+        },
+        {
+          "cid": 4,
+          "name": "categoria",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        },
+        {
+          "cid": 5,
+          "name": "cor",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "seq": 0,
+          "name": "sqlite_autoindex_users_1",
+          "unique": 1,
+          "origin": "pk",
+          "partial": 0,
+          "columns": [
+            {
+              "seqno": 0,
+              "cid": 0,
+              "name": "id"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

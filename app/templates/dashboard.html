@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="header">
+  <div id="header-left">
+    <h1>📊 Controle de Obrigações Contábeis</h1>
+    <p id="header-sub">
+      {% if user.perfil == "gerente" %}
+        Visão gerencial - todas as categorias
+      {% else %}
+        Visão: {{ categories[user.categoria].icon }} {{ categories[user.categoria].label }}
+      {% endif %}
+    </p>
+  </div>
+
+  <div id="header-right">
+    <div class="hdr-user-pill">
+      <div id="hdr-avatar" class="hdr-avatar" style="background: {{ user.cor }};">
+        {{ logic.initials(user.nome) }}
+      </div>
+      <div>
+        <div id="hdr-uname" class="hdr-uname">{{ user.nome }}</div>
+        <div id="hdr-urole" class="hdr-urole">
+          {% if user.perfil == "gerente" %}
+            Gerente
+          {% else %}
+            Equipe · {{ categories[user.categoria].label }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if user.perfil == "gerente" %}
+      <button id="btn-manage-users" onclick="openUsersModal()">👥 Usuários</button>
+    {% endif %}
+    <button id="btn-novo" onclick="toggleForm()">+ Nova obrigação</button>
+    <button id="btn-logout" onclick="window.location.href='/logout'">Sair</button>
+  </div>
+</div>
+
+{% if user.perfil == "gerente" %}
+<div id="cat-tabs-wrap">
+  <div id="cat-tabs">
+    <button class="cat-tab {% if cat_tab == 'todas' %}active{% endif %}" onclick="setCategoryTab('todas')">🗂️ Todas</button>
+    {% for key, cat in categories.items() %}
+      <button class="cat-tab {% if cat_tab == key %}active{% endif %}" onclick="setCategoryTab('{{ key }}')">{{ cat.icon }} {{ cat.label }}</button>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div id="app">
+  <div id="dashboard">
+    <div id="dash-header">
+      <div id="dash-title">📊 Dashboard</div>
+      <div id="dash-controls">
+        <button class="nav" onclick="changeMonth(-1)">◀</button>
+        <span id="dash-month-label">{{ dash_month }}</span>
+        <button class="nav" onclick="changeMonth(1)">▶</button>
+        <button id="dash-all-btn" class="{% if dash_all %}active{% endif %}" onclick="toggleDashAll()">Ver todos</button>
+      </div>
+    </div>
+
+    <div id="kpis">
+      {% for k in kpis %}
+      <div class="kpi" style="background: {{ k.bg }}">
+        <div class="kpi-val" style="color: {{ k.color }}">{{ k.value }}</div>
+        <div class="kpi-lbl">{{ k.label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div id="dash-cats">
+      {% for c in cat_bars %}
+      <div class="dash-cat">
+        <div class="dash-cat-name">{{ c.icon }} {{ c.label }}</div>
+        <div class="dash-cat-bar-wrap"><div class="dash-cat-bar" style="width: {{ c.pct }}%"></div></div>
+        <div class="dash-cat-nums"><strong>{{ c.count }}</strong> tarefa{% if c.count != 1 %}s{% endif %} · {{ c.pct }}% concluído</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div id="form-wrap">
+    <h2 id="form-title">＋ Nova obrigação</h2>
+    <input type="hidden" id="edit-id">
+
+    <div class="form-row">
+      <div class="form-group" style="flex:2;min-width:200px">
+        <label>Título / Obrigação</label>
+        <input id="f-titulo" type="text" placeholder="Ex: SPED Fiscal, DCTF, Folha...">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Categoria</label>
+        <select id="f-categoria">
+          {% if user.perfil == "gerente" %}
+            {% for key, cat in categories.items() %}
+              <option value="{{ key }}">{{ cat.icon }} {{ cat.label }}</option>
+            {% endfor %}
+          {% else %}
+            <option value="{{ user.categoria }}">{{ categories[user.categoria].icon }} {{ categories[user.categoria].label }}</option>
+          {% endif %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Classificação</label>
+        <div class="tipo-toggle">
+          <button id="tipo-btn-rotina" type="button" class="active-rotina" onclick="setTipo('rotina')">🔁 Rotina</button>
+          <button id="tipo-btn-extraordinaria" type="button" onclick="setTipo('extraordinaria')">⚡ Extraordinária</button>
+        </div>
+        <input type="hidden" id="f-tipo" value="rotina">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Prioridade</label>
+        <select id="f-prioridade">
+          {% for key, p in prioridades.items() %}
+            <option value="{{ key }}">{{ p.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Status</label>
+        <select id="f-status">
+          {% for key, cfg in statuses.items() %}
+            <option value="{{ key }}">{{ cfg.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Competência</label>
+        <select id="f-competencia">
+          {% for comp in competencias %}
+            <option value="{{ comp }}" {% if comp == dash_month %}selected{% endif %}>{{ comp }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>📅 Data de Liberação</label>
+        <input id="f-liberacao" type="date">
+      </div>
+
+      <div class="form-group">
+        <label>⏰ Vencimento</label>
+        <input id="f-vencimento" type="date">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Cliente</label>
+        <input id="f-cliente" type="text" placeholder="Nome do cliente">
+      </div>
+      <div class="form-group">
+        <label>Responsável</label>
+        <input id="f-responsavel" type="text" placeholder="Nome do responsável">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group" style="flex:2">
+        <label>Observações</label>
+        <textarea id="f-obs" rows="2" placeholder="Notas, documentos pendentes..."></textarea>
+      </div>
+    </div>
+
+    <div class="form-section-title">Subtarefas</div>
+    <div id="subtask-form-area">
+      <div id="subtask-list-form"></div>
+      <div class="subtask-add-row">
+        <input id="new-st-titulo" type="text" placeholder="Descrição da subtarefa...">
+        <input id="new-st-resp" type="text" placeholder="Responsável (opcional)" style="max-width:170px">
+        <input id="new-st-lib" type="date" title="Liberação da subtarefa (opcional)" style="max-width:150px">
+        <label class="st-na-label"><input type="checkbox" id="new-st-lib-na" onchange="toggleStLibNA('new-st-lib',this)"> N/A</label>
+        <input id="new-st-venc" type="date" title="Vencimento da subtarefa (opcional)" style="max-width:150px">
+        <button class="btn-add-st" type="button" onclick="addSubtaskToForm()">+ Adicionar</button>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-primary" type="button" onclick="saveTask()">Salvar obrigação</button>
+      <button class="btn-secondary" type="button" onclick="closeForm()">Cancelar</button>
+    </div>
+  </div>
+
+  <div id="filters">
+    <div class="filter-tabs">
+      <button class="tab {% if status_filter == 'todos' %}active{% endif %}" onclick="setStatusFilter('todos')">Todos</button>
+      <button class="tab {% if status_filter == 'pendente' %}active{% endif %}" onclick="setStatusFilter('pendente')">Pendentes</button>
+      <button class="tab {% if status_filter == 'em_andamento' %}active{% endif %}" onclick="setStatusFilter('em_andamento')">Em andamento</button>
+      <button class="tab {% if status_filter == 'concluida' %}active{% endif %}" onclick="setStatusFilter('concluida')">Concluídas</button>
+    </div>
+
+    <div class="filter-row">
+      <select id="fil-categoria" onchange="applyFilters()">
+        <option value="todas" {% if categoria == 'todas' %}selected{% endif %}>Todas as categorias</option>
+        {% for key, cat in categories.items() %}
+          <option value="{{ key }}" {% if categoria == key %}selected{% endif %}>{{ cat.icon }} {{ cat.label }}</option>
+        {% endfor %}
+      </select>
+
+      <select id="fil-tipo" onchange="applyFilters()">
+        <option value="todos" {% if tipo == 'todos' %}selected{% endif %}>Todos os tipos</option>
+        <option value="rotina" {% if tipo == 'rotina' %}selected{% endif %}>🔁 Rotina</option>
+        <option value="extraordinaria" {% if tipo == 'extraordinaria' %}selected{% endif %}>⚡ Extraordinária</option>
+      </select>
+
+      <select id="fil-prioridade" onchange="applyFilters()">
+        <option value="todas" {% if prioridade == 'todas' %}selected{% endif %}>Todas as prioridades</option>
+        {% for key, p in prioridades.items() %}
+          <option value="{{ key }}" {% if prioridade == key %}selected{% endif %}>{{ p.label }}</option>
+        {% endfor %}
+      </select>
+
+      <input id="fil-busca" type="text" value="{{ busca }}" placeholder="🔍  Buscar título, cliente ou responsável..." onkeydown="handleSearchKey(event)">
+    </div>
+  </div>
+
+  <div id="result-count">{{ total_count }} obrigações encontradas</div>
+  <div id="task-list">
+    {% for key, icon, label, items, cls in grouped %}
+      {% if items %}
+      <div class="task-group">
+        <div class="group-header {{ cls }}" onclick="toggleGroup(this)">
+          <span>{{ icon }} {{ label }}</span>
+          <span class="group-count">{{ items|length }}</span>
+          <span class="group-toggle">▼</span>
+        </div>
+        <div class="group-body">
+          {% for t in items %}
+            {% include "partials/task_card.html" %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div id="empty" {% if total_count == 0 %}style="display:block"{% endif %}>
+    <div class="empty-icon">📂</div>
+    <p style="font-size:14px;font-weight:500">Nenhuma obrigação encontrada</p>
+    <small style="font-size:12px">Ajuste os filtros ou adicione uma nova obrigação.</small>
+  </div>
+</div>
+
+{% if user.perfil == "gerente" %}
+<div id="users-modal">
+  <div id="users-box">
+    <h3>👥 Gerenciar Usuários</h3>
+    <div id="users-list">
+      {% for u in all_users %}
+      <div class="user-row">
+        <div class="hdr-avatar" style="background: {{ u.cor }};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">
+          {{ logic.initials(u.nome) }}
+        </div>
+        <div style="flex:1">
+          <div class="ur-name">{{ u.nome }} <span style="font-weight:400;color:#6b7280;font-size:12px">({{ u.id }})</span></div>
+          <div style="display:flex;gap:6px;margin-top:3px">
+            <span class="ur-role {% if u.perfil == 'gerente' %}ur-gerente{% else %}ur-equipe{% endif %}">
+              {% if u.perfil == 'gerente' %}Gerente{% else %}Equipe{% endif %}
+            </span>
+            {% if u.categoria %}
+              <span class="ur-cat">{{ categories[u.categoria].icon }} {{ categories[u.categoria].label }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if u.id == user.id %}
+          <button class="btn-del-user" type="button" disabled>Atual</button>
+        {% else %}
+          <button class="btn-del-user" type="button" onclick="deleteUser('{{ u.id }}')">Remover</button>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="user-add-form">
+      <div style="font-size:12px;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Adicionar usuário</div>
+      <label>Nome de usuário</label>
+      <input id="nu-nome" type="text" placeholder="Ex: joao.silva">
+      <label>Nome completo</label>
+      <input id="nu-fullname" type="text" placeholder="Ex: João Silva">
+      <label>Senha</label>
+      <input id="nu-senha" type="password" placeholder="Senha de acesso">
+      <label>Perfil</label>
+      <select id="nu-perfil" onchange="toggleCatSelect()">
+        <option value="equipe">Equipe (categoria específica)</option>
+        <option value="gerente">Gerente (acesso total)</option>
+      </select>
+      <div id="nu-cat-wrap">
+        <label>Categoria</label>
+        <select id="nu-categoria">
+          {% for key, cat in categories.items() %}
+            <option value="{{ key }}">{{ cat.icon }} {{ cat.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn-primary" style="flex:1" type="button" onclick="addUser()">Adicionar usuário</button>
+        <button class="btn-secondary" type="button" onclick="closeUsersModal()">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div id="replicate-modal">
+  <div id="replicate-box">
+    <h3>🔁 Replicar obrigação</h3>
+    <p id="replicate-desc"></p>
+    <label>Competência de destino</label>
+    <select id="replicate-comp">
+      {% for comp in competencias %}
+        <option value="{{ comp }}">{{ comp }}</option>
+      {% endfor %}
+    </select>
+    <div class="replicate-actions">
+      <button class="btn-ok" type="button" onclick="confirmReplicate()">✓ Replicar</button>
+      <button class="btn-cancel" type="button" onclick="closeReplicate()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="edit-st-modal">
+  <div id="edit-st-box">
+    <h3>✏️ Editar subtarefa</h3>
+    <div class="edit-st-field">
+      <label>Descrição</label>
+      <input id="edit-st-titulo" type="text" placeholder="Descrição...">
+    </div>
+    <div class="edit-st-field">
+      <label>Responsável</label>
+      <input id="edit-st-resp" type="text" placeholder="Responsável (opcional)">
+    </div>
+    <div class="edit-st-field">
+      <label>Liberação</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="edit-st-lib" type="date" style="flex:1">
+        <label class="st-na-label"><input type="checkbox" id="edit-st-lib-na" onchange="toggleStLibNA('edit-st-lib',this)"> N/A</label>
+      </div>
+    </div>
+    <div class="edit-st-field">
+      <label>Vencimento</label>
+      <input id="edit-st-venc" type="date">
+    </div>
+    <div class="edit-st-actions">
+      <button class="btn-ok" type="button" onclick="confirmEditSt()">✓ Salvar</button>
+      <button class="btn-cancel" type="button" onclick="closeEditSt()">Cancelar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.APP_DATA = {
+    tasks: {{ tasks_json|tojson }},
+    competencias: {{ competencias|tojson }},
+    dashMonth: {{ dash_month|tojson }},
+    dashAll: {{ dash_all|tojson }},
+    catTab: {{ cat_tab|tojson }},
+    statusFilter: {{ status_filter|tojson }}
+  };
+</script>
+{% endblock %}

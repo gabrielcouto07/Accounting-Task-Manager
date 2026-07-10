@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.log
+.env
+logs/
+backups/app_sqlite/
+backups/app_db/
+backups/legacy_sqlite/export/
+data/
+*.db
+*.db-shm
+*.db-wal

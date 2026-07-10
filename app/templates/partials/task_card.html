@@ -1,0 +1,89 @@
+{% set cat = categories.get(t.categoria) or {"label": t.categoria, "icon": "📌"} %}
+{% set pri = prioridades.get(t.prioridade) or prioridades.normal %}
+{% set tipo = tipo_cfg.get(t.tipo) or tipo_cfg.rotina %}
+{% set venc = logic.venc_badge(t.vencimento, t.status) %}
+{% set done_subs = t.subtarefas|selectattr("concluida")|list|length %}
+{% set total_subs = t.subtarefas|length %}
+{% set progress = ((done_subs / total_subs) * 100)|round(0, "floor") if total_subs else 0 %}
+
+<article class="task-card {% if t.status == 'concluida' %}concluida{% endif %} {% if venc and 'Venc' in venc.text %}urgente{% endif %}" style="border-left-color: {{ pri.color }}">
+  <div class="task-main">
+    <select class="task-status-select" onchange="changeStatus({{ t.id }}, this.value)" style="color: {{ statuses[t.status].color }}">
+      {% for key, cfg in statuses.items() %}
+        <option value="{{ key }}" {% if t.status == key %}selected{% endif %}>{{ cfg.label }}</option>
+      {% endfor %}
+    </select>
+
+    <div class="task-body">
+      <div class="task-title {% if t.status == 'concluida' %}riscado{% endif %}">{{ t.titulo }}</div>
+
+      <div class="task-badges">
+        <span class="badge" style="background: {{ cat.get('bg', '#f3f4f6') }}; color: #374151">{{ cat.icon }} {{ cat.label }}</span>
+        <span class="badge" style="background: {{ tipo.bg }}; color: {{ tipo.color }}">{{ tipo.icon }} {{ tipo.label }}</span>
+        <span class="badge" style="background: {{ pri.bg }}; color: {{ pri.color }}">{{ pri.label }}</span>
+        <span class="badge" style="background:#f3f4f6;color:#6b7280">{{ t.competencia }}</span>
+        {% if venc %}
+          <span class="badge" style="background: {{ venc.bg }}; color: {{ venc.color }}">{{ venc.text }}</span>
+        {% endif %}
+      </div>
+
+      {% if t.obs %}
+        <div class="task-obs">{{ t.obs }}</div>
+      {% endif %}
+
+      <div class="task-meta">
+        {% if t.liberacao %}<span>📅 Liberação: {{ logic.fmt_data(t.liberacao) }}</span>{% endif %}
+        {% if t.vencimento %}<span>⏰ Vencimento: {{ logic.fmt_data(t.vencimento) }}</span>{% endif %}
+        {% if t.cliente %}<span>Cliente: {{ t.cliente }}</span>{% endif %}
+        {% if t.responsavel %}<span>Responsável: {{ t.responsavel }}</span>{% endif %}
+        <span class="task-conclusao-group">
+          Conclusão:
+          <input type="date" value="{{ t.data_conclusao.isoformat() if t.data_conclusao else '' }}" onchange="setTaskConclusion({{ t.id }}, this.value)">
+        </span>
+      </div>
+    </div>
+
+    <div class="task-actions">
+      <button class="btn-icon btn-edit" type="button" title="Editar" onclick="editTask({{ t.id }})">✏️</button>
+      <button class="btn-icon btn-replicate" type="button" title="Replicar" onclick="openReplicate({{ t.id }})">🔁</button>
+      {% if total_subs %}
+        <button class="btn-icon btn-expand" type="button" title="Subtarefas" onclick="toggleSubtasks({{ t.id }})">{{ done_subs }}/{{ total_subs }}</button>
+      {% else %}
+        <button class="btn-icon btn-expand" type="button" title="Subtarefas" onclick="toggleSubtasks({{ t.id }})">0</button>
+      {% endif %}
+      {% if user.perfil == "gerente" %}
+        <button class="btn-icon btn-delete" type="button" title="Excluir" onclick="deleteTask({{ t.id }})">🗑️</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="subtasks-{{ t.id }}" class="subtasks-panel">
+    <div class="subtasks-header">Subtarefas</div>
+    <div class="subtask-progress">
+      <div class="subtask-progress-bar" style="width: {{ progress }}%"></div>
+    </div>
+
+    {% for st in logic.sort_subtasks(t.subtarefas) %}
+      <div class="subtask-row">
+        <button class="subtask-check {% if st.concluida %}done{% endif %}" type="button" onclick="toggleSubtask({{ t.id }}, {{ st.id }})"></button>
+        <span class="subtask-text {% if st.concluida %}riscado{% endif %}">{{ st.titulo }}</span>
+        {% if st.responsavel %}<span class="subtask-resp">{{ st.responsavel }}</span>{% endif %}
+        {% if st.liberacao %}<span class="subtask-resp">Lib: {{ logic.fmt_data(st.liberacao) }}</span>{% endif %}
+        {% if st.vencimento %}<span class="subtask-resp">Venc: {{ logic.fmt_data(st.vencimento) }}</span>{% endif %}
+        <span class="st-conclusao-group">
+          <input type="date" value="{% if st.data_conclusao and st.data_conclusao != 'NA' %}{{ st.data_conclusao }}{% endif %}" {% if st.data_conclusao == 'NA' %}disabled{% endif %} onchange="setSubtaskConclusion({{ t.id }}, {{ st.id }}, this.value)">
+          <label class="st-na-label"><input type="checkbox" {% if st.data_conclusao == 'NA' %}checked{% endif %} onchange="setSubtaskConclusion({{ t.id }}, {{ st.id }}, this.checked ? 'NA' : '')"> N/A</label>
+        </span>
+        <button class="btn-edit-st-inline" type="button" title="Editar subtarefa" onclick="openEditSt({{ t.id }}, {{ st.id }})">✏️</button>
+        <button class="btn-del-st" type="button" title="Excluir subtarefa" onclick="deleteSubtask({{ t.id }}, {{ st.id }})">×</button>
+      </div>
+    {% endfor %}
+
+    <div class="subtask-add">
+      <input id="inline-st-title-{{ t.id }}" type="text" placeholder="Nova subtarefa...">
+      <input id="inline-st-resp-{{ t.id }}" type="text" placeholder="Responsável">
+      <input id="inline-st-venc-{{ t.id }}" type="date" title="Vencimento">
+      <button type="button" onclick="addInlineSubtask({{ t.id }})">Adicionar</button>
+    </div>
+  </div>
+</article>

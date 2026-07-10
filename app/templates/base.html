@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Obrigações Contábeis</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  {% block content %}{% endblock %}
+
+  <div id="save-indicator" class="save-indicator">✓ Salvo</div>
+
+  <script>
+    function flash(msg) {
+      const ind = document.getElementById('save-indicator');
+      if (!ind) return;
+      ind.textContent = msg || '✓ Salvo';
+      ind.classList.add('show');
+      clearTimeout(window._flashTimer);
+      window._flashTimer = setTimeout(() => ind.classList.remove('show'), 1800);
+    }
+
+    async function apiCall(url, method = 'POST', body = null) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body !== null) opts.body = JSON.stringify(body);
+      const res = await fetch(url, opts);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Erro ao processar' }));
+        alert(err.detail || 'Erro ao processar');
+        return null;
+      }
+      return res.json();
+    }
+
+    function reload() {
+      window.location.reload();
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+  <script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

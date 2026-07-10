@@ -1,0 +1,394 @@
+from contextlib import asynccontextmanager
+from datetime import date
+import os
+from pathlib import Path
+from typing import Any
+
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
+
+from app import auth, crud, logic, models, schemas
+from app.database import Base, engine, get_db, session_scope
+
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    with session_scope() as db:
+        crud.ensure_schema(db)
+        crud.bootstrap_data(db)
+    yield
+
+
+app = FastAPI(title="Controle de Obrigacoes Contabeis", lifespan=lifespan)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET_KEY", "troque-esta-chave-em-producao"),
+    session_cookie=os.getenv("SESSION_COOKIE_NAME", "gerenciado_contabil_session"),
+    same_site="lax",
+)
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+
+def _redirect(path: str) -> RedirectResponse:
+    return RedirectResponse(path, status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _date_or_none(value: Any) -> date | None:
+    if not value:
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Data invalida") from exc
+
+
+def _serialize_subtask(subtask: models.Subtask) -> dict[str, Any]:
+    return {
+        "id": subtask.id,
+        "task_id": subtask.task_id,
+        "titulo": subtask.titulo,
+        "responsavel": subtask.responsavel or "",
+        "concluida": subtask.concluida,
+        "liberacao": subtask.liberacao or "",
+        "vencimento": subtask.vencimento.isoformat() if subtask.vencimento else "",
+        "data_conclusao": subtask.data_conclusao or "",
+    }
+
+
+def _serialize_task(task: models.Task) -> dict[str, Any]:
+    return {
+        "id": task.id,
+        "titulo": task.titulo,
+        "categoria": task.categoria,
+        "tipo": task.tipo,
+        "prioridade": task.prioridade,
+        "status": task.status,
+        "competencia": task.competencia,
+        "liberacao": task.liberacao.isoformat() if task.liberacao else "",
+        "vencimento": task.vencimento.isoformat() if task.vencimento else "",
+        "data_conclusao": task.data_conclusao.isoformat() if task.data_conclusao else "",
+        "cliente": task.cliente or "",
+        "responsavel": task.responsavel or "",
+        "obs": task.obs or "",
+        "created_at": task.created_at.isoformat() if task.created_at else "",
+        "subtarefas": [_serialize_subtask(subtask) for subtask in task.subtarefas],
+    }
+
+
+async def _request_payload(request: Request) -> dict[str, Any]:
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        payload = await request.json()
+        return payload or {}
+    form = await request.form()
+    return dict(form)
+
+
+@app.get("/", response_class=HTMLResponse)
+def index(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = auth.get_current_user_optional(request, db)
+    if not user:
+        return _redirect("/login")
+    return _redirect("/dashboard")
+
+
+@app.get("/health")
+def healthcheck() -> dict[str, bool]:
+    return {"ok": True}
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    if auth.get_current_user_optional(request, db):
+        return _redirect("/dashboard")
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={
+            "users": crud.get_users(db),
+            "error": False,
+        },
+    )
+
+
+@app.post("/login", response_class=HTMLResponse)
+def do_login(
+    request: Request,
+    user_id: str = Form(...),
+    senha: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = crud.authenticate_user(db, user_id=user_id, senha=senha)
+    if not user:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "users": crud.get_users(db),
+                "error": True,
+            },
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    auth.login_user(request, user)
+    return _redirect("/dashboard")
+
+
+@app.get("/logout")
+@app.post("/logout")
+def do_logout(request: Request):
+    auth.logout_user(request)
+    return _redirect("/login")
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard_page(
+    request: Request,
+    cat_tab: str = "todas",
+    status_filter: str = "todos",
+    categoria: str = "todas",
+    tipo: str = "todos",
+    prioridade: str = "todas",
+    busca: str = "",
+    dash_month: str = "Jun/26",
+    dash_all: bool = False,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    if user.perfil != "gerente":
+        cat_tab = user.categoria or "todas"
+        categoria = "todas"
+
+    tasks = crud.get_filtered_tasks(
+        db=db,
+        current_user=user,
+        categoria_tab=cat_tab,
+        status=status_filter,
+        categoria=categoria,
+        tipo=tipo,
+        prioridade=prioridade,
+        busca=busca,
+    )
+    kpi_base = crud.scoped_tasks_query(db, user, cat_tab).all()
+    kpi_src = kpi_base if dash_all else [t for t in kpi_base if t.competencia == dash_month]
+
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html",
+        context={
+            "user": user,
+            "kpis": logic.build_kpis(kpi_src),
+            "cat_bars": logic.build_category_bars(kpi_src, user, cat_tab),
+            "grouped": logic.group_tasks(tasks),
+            "total_count": len(tasks),
+            "scoped_count": len(kpi_base),
+            "categories": logic.CATEGORIES,
+            "prioridades": logic.PRIORIDADES,
+            "tipo_cfg": logic.TIPO_CFG,
+            "statuses": logic.STATUSES,
+            "competencias": logic.COMPETENCIAS,
+            "dash_month": dash_month,
+            "dash_all": dash_all,
+            "cat_tab": cat_tab,
+            "status_filter": status_filter,
+            "categoria": categoria,
+            "tipo": tipo,
+            "prioridade": prioridade,
+            "busca": busca,
+            "all_users": crud.get_users(db) if user.perfil == "gerente" else [],
+            "tasks_json": [_serialize_task(task) for task in tasks],
+            "logic": logic,
+        },
+    )
+
+
+def _require_task_access(db: Session, task_id: int, user: models.User) -> models.Task:
+    task = crud.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarefa nao encontrada")
+    if user.perfil != "gerente" and task.categoria != user.categoria:
+        raise HTTPException(status_code=403, detail="Acao restrita a sua categoria")
+    return task
+
+
+@app.post("/api/tasks")
+def api_create_task(
+    data: schemas.TaskCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    if user.perfil != "gerente":
+        data = data.model_copy(update={"categoria": user.categoria})
+    task = crud.create_task(db, data)
+    return {"ok": True, "id": task.id}
+
+
+@app.put("/api/tasks/{task_id}")
+def api_update_task(
+    task_id: int,
+    data: schemas.TaskUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    _require_task_access(db, task_id, user)
+    if user.perfil != "gerente":
+        data = data.model_copy(update={"categoria": user.categoria})
+    task = crud.update_task(db, task_id, data)
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarefa nao encontrada")
+    return {"ok": True, "id": task.id}
+
+
+@app.delete("/api/tasks/{task_id}")
+def api_delete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.require_gerente),
+):
+    if not crud.delete_task(db, task_id):
+        raise HTTPException(status_code=404, detail="Tarefa nao encontrada")
+    return {"ok": True}
+
+
+@app.post("/api/tasks/{task_id}/status")
+async def api_change_status(
+    task_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    _require_task_access(db, task_id, user)
+    payload = await _request_payload(request)
+    status_value = payload.get("status")
+    if status_value not in logic.STATUSES:
+        raise HTTPException(status_code=400, detail="Status invalido")
+    task = crud.change_status(db, task_id, status_value)
+    return {"ok": True, "id": task.id}
+
+
+@app.post("/api/tasks/{task_id}/conclusao")
+async def api_set_conclusao(
+    task_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    _require_task_access(db, task_id, user)
+    payload = await _request_payload(request)
+    value = _date_or_none(payload.get("value"))
+    task = crud.set_task_conclusao_data(db, task_id, value)
+    return {"ok": True, "id": task.id}
+
+
+@app.post("/api/tasks/{task_id}/replicate")
+def api_replicate(
+    task_id: int,
+    data: schemas.ReplicateRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    _require_task_access(db, task_id, user)
+    copy = crud.replicate_task(db, task_id, data.nova_competencia)
+    if not copy:
+        raise HTTPException(status_code=404, detail="Tarefa nao encontrada")
+    return {"ok": True, "id": copy.id}
+
+
+@app.post("/api/tasks/{task_id}/subtasks")
+def api_add_subtask(
+    task_id: int,
+    data: schemas.SubtaskCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    _require_task_access(db, task_id, user)
+    task = crud.add_subtask(db, task_id, data)
+    return {"ok": True, "id": task.id}
+
+
+@app.put("/api/tasks/{task_id}/subtasks/{subtask_id}")
+def api_update_subtask(
+    task_id: int,
+    subtask_id: int,
+    data: schemas.SubtaskCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    _require_task_access(db, task_id, user)
+    task = crud.update_subtask(db, task_id, subtask_id, data)
+    if not task:
+        raise HTTPException(status_code=404, detail="Subtarefa nao encontrada")
+    return {"ok": True, "id": task.id}
+
+
+@app.post("/api/tasks/{task_id}/subtasks/{subtask_id}/toggle")
+def api_toggle_subtask(
+    task_id: int,
+    subtask_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    _require_task_access(db, task_id, user)
+    task = crud.toggle_subtask(db, task_id, subtask_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Subtarefa nao encontrada")
+    return {"ok": True, "id": task.id}
+
+
+@app.delete("/api/tasks/{task_id}/subtasks/{subtask_id}")
+def api_delete_subtask(
+    task_id: int,
+    subtask_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    _require_task_access(db, task_id, user)
+    task = crud.delete_subtask(db, task_id, subtask_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Subtarefa nao encontrada")
+    return {"ok": True, "id": task.id}
+
+
+@app.post("/api/users")
+def api_create_user(
+    data: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.require_gerente),
+):
+    if crud.get_user(db, data.id):
+        raise HTTPException(status_code=400, detail="Usuario ja existe")
+    if data.perfil == "equipe" and not data.categoria:
+        raise HTTPException(status_code=400, detail="Categoria obrigatoria para usuario de equipe")
+    cor = logic.AVATAR_COLORS[len(crud.get_users(db)) % len(logic.AVATAR_COLORS)]
+    crud.create_user(db, data, cor)
+    return {"ok": True}
+
+
+@app.delete("/api/users/{user_id}")
+def api_delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.require_gerente),
+):
+    if user_id == user.id:
+        raise HTTPException(status_code=400, detail="Nao e possivel remover o usuario logado")
+    if not crud.delete_user(db, user_id):
+        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
+    return {"ok": True}
