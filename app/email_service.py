@@ -41,7 +41,7 @@ def send_email(
         logger.warning("Nenhum destinatario informado; email ignorado.")
         return False
 
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_host = os.getenv("SMTP_HOST", "smtp.office365.com")
     smtp_password = os.getenv("SMTP_PASSWORD", "")
     smtp_from = os.getenv("SMTP_FROM", smtp_user)
     use_tls = os.getenv("SMTP_TLS", "true").strip().lower() not in {"0", "false", "no", "nao"}
