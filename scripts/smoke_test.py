@@ -18,11 +18,15 @@ def main() -> None:
 
         from fastapi.testclient import TestClient
 
+        from app import email_service
         from app import models, security
         from app.database import SessionLocal, engine
         from app.main import app
 
         try:
+            os.environ["SMTP_USER"] = ""
+            assert email_service.send_email("teste@example.com", "Smoke", "Teste") is False
+
             with TestClient(app) as client:
                 login = client.post(
                     "/login",

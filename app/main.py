@@ -1,10 +1,8 @@
 from contextlib import asynccontextmanager
 from datetime import date
-from email.mime.text import MIMEText
 import logging
 import os
 from pathlib import Path
-import smtplib
 from typing import Any
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
@@ -14,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth, crud, logic, models, schemas
+from app import auth, crud, email_service, logic, models, schemas
 from app.database import Base, engine, get_db, session_scope
 
 
@@ -79,23 +77,7 @@ def _require_admin_user(
     return user
 
 
-def _smtp_port() -> int:
-    try:
-        return int(os.getenv("SMTP_PORT", "587"))
-    except ValueError:
-        logger.warning("SMTP_PORT invalido; usando porta 587")
-        return 587
-
-
 def _send_chamado_email(chamado: models.Chamado) -> None:
-    smtp_user = os.getenv("SMTP_USER", "").strip()
-    if not smtp_user:
-        logger.warning("SMTP_USER nao configurado; notificacao de chamado ignorada.")
-        return
-
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_password = os.getenv("SMTP_PASSWORD", "")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user)
     subject = f"[Chamado #{chamado.id}] {chamado.titulo}"
     body = (
         "Novo chamado aberto no Gerenciado Contabil.\n\n"
@@ -106,17 +88,8 @@ def _send_chamado_email(chamado: models.Chamado) -> None:
         "Acesse o sistema para visualizar e atualizar o status.\n"
     )
 
-    message = MIMEText(body, "plain", "utf-8")
-    message["From"] = smtp_from
-    message["To"] = ", ".join(CHAMADO_RECIPIENTS)
-    message["Subject"] = subject
-
     try:
-        with smtplib.SMTP(smtp_host, _smtp_port()) as smtp:
-            smtp.starttls()
-            if smtp_password:
-                smtp.login(smtp_user, smtp_password)
-            smtp.sendmail(smtp_from, CHAMADO_RECIPIENTS, message.as_string())
+        email_service.send_email(CHAMADO_RECIPIENTS, subject, body)
     except Exception:
         logger.exception("Falha ao enviar notificacao do chamado %s", chamado.id)
 
