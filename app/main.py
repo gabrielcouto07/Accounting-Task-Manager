@@ -473,6 +473,18 @@ def update_chamado_status(
     return _redirect_with_flash(request, f"/chamados/{chamado_id}", "Status atualizado")
 
 
+@app.post("/chamados/{chamado_id}/delete")
+def delete_chamado(
+    chamado_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(_require_admin_user),
+):
+    if not crud.delete_chamado(db, chamado_id):
+        raise HTTPException(status_code=404, detail="Chamado nao encontrado")
+    return _redirect_with_flash(request, "/chamados", f"Chamado #{chamado_id} excluido")
+
+
 def _require_task_access(db: Session, task_id: int, user: models.User) -> models.Task:
     task = crud.get_task(db, task_id)
     if not task:

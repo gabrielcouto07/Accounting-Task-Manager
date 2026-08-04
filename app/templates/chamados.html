@@ -55,6 +55,9 @@
           </div>
           <div class="task-actions">
             <button class="btn-secondary" type="button" onclick="window.location.href='/chamados/{{ chamado.id }}'">Ver detalhes</button>
+            <form action="/chamados/{{ chamado.id }}/delete" method="post" onsubmit="return confirm('Excluir o chamado #{{ chamado.id }}?')" style="display:inline">
+              <button class="btn-icon btn-delete" type="submit" title="Excluir chamado">🗑️</button>
+            </form>
           </div>
         </div>
       </div>

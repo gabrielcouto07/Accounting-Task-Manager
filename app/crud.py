@@ -187,6 +187,15 @@ def create_chamado(
     return chamado
 
 
+def delete_chamado(db: Session, chamado_id: int) -> bool:
+    chamado = get_chamado(db, chamado_id)
+    if not chamado:
+        return False
+    db.delete(chamado)
+    db.commit()
+    return True
+
+
 def update_chamado_status(db: Session, chamado_id: int, status: str) -> models.Chamado | None:
     chamado = get_chamado(db, chamado_id)
     if not chamado:
