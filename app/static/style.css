@@ -245,6 +245,9 @@ input[type=date]:disabled { background:#f3f4f6; color:#9ca3af; cursor:not-allowe
 .g-vencidas   { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
 .g-vencendo   { background:#fff7ed; color:#ea580c; border-color:#fed7aa; }
 .g-extra      { background:#f5f3ff; color:#7c3aed; border-color:#ddd6fe; }
+.extra-user-header { display:flex; align-items:center; gap:8px; padding:6px 14px; margin:10px 0 6px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#7c3aed; background:#faf9ff; border:1px dashed #ddd6fe; border-radius:8px; }
+.extra-user-header:first-child { margin-top:0; }
+.extra-user-count { margin-left:auto; font-size:10px; font-weight:700; padding:1px 8px; border-radius:10px; background:#ede9fe; }
 .g-ativas     { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
 .g-concluidas { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
 

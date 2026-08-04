@@ -239,9 +239,21 @@
           <span class="group-toggle">▼</span>
         </div>
         <div class="group-body">
-          {% for t in items %}
-            {% include "partials/task_card.html" %}
-          {% endfor %}
+          {% if key == "extra" %}
+            {% for resp_nome, resp_items in logic.group_extras_by_user(items) %}
+              <div class="extra-user-header">
+                <span>👤 {{ resp_nome }}</span>
+                <span class="extra-user-count">{{ resp_items|length }}</span>
+              </div>
+              {% for t in resp_items %}
+                {% include "partials/task_card.html" %}
+              {% endfor %}
+            {% endfor %}
+          {% else %}
+            {% for t in items %}
+              {% include "partials/task_card.html" %}
+            {% endfor %}
+          {% endif %}
         </div>
       </div>
       {% endif %}

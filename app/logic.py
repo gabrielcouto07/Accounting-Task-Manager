@@ -241,6 +241,19 @@ def build_category_bars(tasks: list[Any], user: Any, cat_tab: str) -> list[dict[
     return bars
 
 
+def group_extras_by_user(tasks: list[Any]) -> list[tuple[str, list[Any]]]:
+    """Agrupa tarefas extraordinárias por responsável (sem responsável por último)."""
+    grupos: dict[str, list[Any]] = {}
+    for task in tasks:
+        nome = (task.responsavel or "").strip() or "Sem responsável"
+        grupos.setdefault(nome, []).append(task)
+    ordenados = sorted(
+        grupos.items(),
+        key=lambda item: (item[0] == "Sem responsável", item[0].lower()),
+    )
+    return [(nome, sort_tasks(itens)) for nome, itens in ordenados]
+
+
 def group_tasks(tasks: list[Any]) -> list[tuple[str, str, str, list[Any], str]]:
     extras = [task for task in tasks if task.tipo == "extraordinaria" and task.status != "concluida"]
     vencidas = [

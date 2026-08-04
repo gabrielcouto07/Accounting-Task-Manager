@@ -199,6 +199,9 @@ async function saveTask() {
   const url = id ? `/api/tasks/${id}` : '/api/tasks';
   const result = await apiCall(url, method, payload);
   if (result) {
+    if (result.email_sent === false) {
+      setPendingFlash('Salvo, mas o e-mail de aviso da extraordinária NÃO foi enviado');
+    }
     flash('✓ Salvo');
     reload();
   }
@@ -300,6 +303,21 @@ function restoreScrollPosition() {
     sessionStorage.removeItem('gc-scroll-y');
   } catch (e) { /* sessionStorage indisponível */ }
   if (saved !== null) window.scrollTo(0, Number(saved));
+}
+
+function setPendingFlash(message) {
+  try {
+    sessionStorage.setItem('gc-pending-flash', message);
+  } catch (e) { /* sessionStorage indisponível */ }
+}
+
+function showPendingFlash() {
+  let message = null;
+  try {
+    message = sessionStorage.getItem('gc-pending-flash');
+    sessionStorage.removeItem('gc-pending-flash');
+  } catch (e) { /* sessionStorage indisponível */ }
+  if (message) flash(message);
 }
 
 function toggleSubtasks(id) {
@@ -543,6 +561,7 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleCatSelect();
   restoreOpenSubtaskPanels();
   restoreScrollPosition();
+  showPendingFlash();
 
   ['users-modal', 'replicate-modal', 'edit-st-modal'].forEach((id) => {
     const modal = byId(id);
