@@ -255,13 +255,64 @@ async function setTaskConclusion(id, value) {
   }
 }
 
+const OPEN_PANELS_KEY = 'gc-open-subtask-panels';
+
+function getOpenPanels() {
+  try {
+    return new Set(JSON.parse(sessionStorage.getItem(OPEN_PANELS_KEY) || '[]').map(Number));
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function saveOpenPanels(ids) {
+  try {
+    sessionStorage.setItem(OPEN_PANELS_KEY, JSON.stringify([...ids]));
+  } catch (e) { /* sessionStorage indisponível */ }
+}
+
+function setPanelOpen(taskId, open) {
+  const ids = getOpenPanels();
+  if (open) {
+    ids.add(Number(taskId));
+  } else {
+    ids.delete(Number(taskId));
+  }
+  saveOpenPanels(ids);
+}
+
+function restoreOpenSubtaskPanels() {
+  const stillOpen = new Set();
+  getOpenPanels().forEach((id) => {
+    const panel = byId(`subtasks-${id}`);
+    if (panel) {
+      panel.classList.add('open');
+      stillOpen.add(Number(id));
+    }
+  });
+  saveOpenPanels(stillOpen);
+}
+
+function restoreScrollPosition() {
+  let saved = null;
+  try {
+    saved = sessionStorage.getItem('gc-scroll-y');
+    sessionStorage.removeItem('gc-scroll-y');
+  } catch (e) { /* sessionStorage indisponível */ }
+  if (saved !== null) window.scrollTo(0, Number(saved));
+}
+
 function toggleSubtasks(id) {
-  byId(`subtasks-${id}`)?.classList.toggle('open');
+  const panel = byId(`subtasks-${id}`);
+  if (!panel) return;
+  panel.classList.toggle('open');
+  setPanelOpen(id, panel.classList.contains('open'));
 }
 
 async function toggleSubtask(taskId, subtaskId) {
   const result = await apiCall(`/api/tasks/${taskId}/subtasks/${subtaskId}/toggle`, 'POST');
   if (result) {
+    setPanelOpen(taskId, true);
     flash('Subtarefa atualizada');
     reload();
   }
@@ -283,6 +334,7 @@ async function addInlineSubtask(taskId) {
     data_conclusao: '',
   });
   if (result) {
+    setPanelOpen(taskId, true);
     flash('Subtarefa adicionada');
     reload();
   }
@@ -332,6 +384,7 @@ async function confirmEditSt() {
   const result = await apiCall(`/api/tasks/${taskId}/subtasks/${subtaskId}`, 'PUT', payload);
   if (result) {
     closeEditSt();
+    setPanelOpen(taskId, true);
     flash('Subtarefa salva');
     reload();
   }
@@ -350,6 +403,7 @@ async function setSubtaskConclusion(taskId, subtaskId, value) {
   };
   const result = await apiCall(`/api/tasks/${taskId}/subtasks/${subtaskId}`, 'PUT', payload);
   if (result) {
+    setPanelOpen(taskId, true);
     flash('Conclusão atualizada');
     reload();
   }
@@ -359,6 +413,7 @@ async function deleteSubtask(taskId, subtaskId) {
   if (!confirm('Remover esta subtarefa?')) return;
   const result = await apiCall(`/api/tasks/${taskId}/subtasks/${subtaskId}`, 'DELETE');
   if (result) {
+    setPanelOpen(taskId, true);
     flash('Subtarefa removida');
     reload();
   }
@@ -486,6 +541,8 @@ function toggleGroup(header) {
 
 document.addEventListener('DOMContentLoaded', () => {
   toggleCatSelect();
+  restoreOpenSubtaskPanels();
+  restoreScrollPosition();
 
   ['users-modal', 'replicate-modal', 'edit-st-modal'].forEach((id) => {
     const modal = byId(id);

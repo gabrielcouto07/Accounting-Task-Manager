@@ -77,7 +77,7 @@ def _require_admin_user(
     return user
 
 
-def _send_chamado_email(chamado: models.Chamado) -> None:
+def _send_chamado_email(chamado: models.Chamado) -> bool:
     subject = f"[Chamado #{chamado.id}] {chamado.titulo}"
     body = (
         "Novo chamado aberto no Gerenciado Contabil.\n\n"
@@ -89,9 +89,10 @@ def _send_chamado_email(chamado: models.Chamado) -> None:
     )
 
     try:
-        email_service.send_email(CHAMADO_RECIPIENTS, subject, body)
+        return email_service.send_email(CHAMADO_RECIPIENTS, subject, body)
     except Exception:
         logger.exception("Falha ao enviar notificacao do chamado %s", chamado.id)
+        return False
 
 
 def _date_or_none(value: Any) -> date | None:
@@ -221,7 +222,7 @@ def dashboard_page(
     tipo: str = "todos",
     prioridade: str = "todas",
     busca: str = "",
-    dash_month: str = "Jun/26",
+    dash_month: str | None = None,
     dash_all: bool = False,
     db: Session = Depends(get_db),
     user: models.User = Depends(auth.get_current_user),
@@ -229,6 +230,8 @@ def dashboard_page(
     if user.perfil != "gerente":
         cat_tab = user.categoria or "todas"
         categoria = "todas"
+    if not dash_month:
+        dash_month = logic.competencia_atual()
 
     tasks = crud.get_filtered_tasks(
         db=db,
@@ -421,8 +424,14 @@ def novo_chamado(
         descricao=descricao,
         solicitante=user.id,
     )
-    _send_chamado_email(chamado)
-    return _redirect_with_flash(request, "/chamados", "Chamado aberto com sucesso")
+    if _send_chamado_email(chamado):
+        return _redirect_with_flash(request, "/chamados", "Chamado aberto com sucesso")
+    return _redirect_with_flash(
+        request,
+        "/chamados",
+        "Chamado aberto, mas o e-mail de notificacao NAO foi enviado. "
+        "Verifique as configuracoes SMTP do servidor.",
+    )
 
 
 @app.get("/chamados/{chamado_id}", response_class=HTMLResponse)

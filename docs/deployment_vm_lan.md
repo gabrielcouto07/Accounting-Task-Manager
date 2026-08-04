@@ -73,6 +73,8 @@ Windows:
 ```powershell
 $env:DATABASE_URL = "sqlite:///C:/data/gerenciado-contabil/controle_contabil.db"
 $env:SESSION_SECRET_KEY = "replace-with-a-long-random-secret"
+$env:SMTP_USER = "conta-de-envio@scientificdental.com"
+$env:SMTP_PASSWORD = "senha-ou-app-password"
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -81,7 +83,42 @@ Linux:
 ```bash
 export DATABASE_URL="sqlite:////var/lib/gerenciado-contabil/controle_contabil.db"
 export SESSION_SECRET_KEY="replace-with-a-long-random-secret"
+export SMTP_USER="conta-de-envio@scientificdental.com"
+export SMTP_PASSWORD="senha-ou-app-password"
 uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+## Email Dos Chamados (SMTP)
+
+Quando um chamado e aberto, o sistema envia email para os enderecos definidos em
+`CHAMADO_RECIPIENTS` (`app/main.py`). O envio SO ACONTECE se as variaveis SMTP
+estiverem definidas no ambiente do servico. Sem `SMTP_USER`, o chamado e criado
+normalmente, mas o email nao sai e a tela mostra o aviso de falha.
+
+Variaveis:
+
+```text
+SMTP_USER=conta-de-envio@scientificdental.com   # obrigatoria
+SMTP_PASSWORD=senha-ou-app-password             # obrigatoria para Microsoft 365
+SMTP_HOST=smtp.office365.com                    # padrao
+SMTP_PORT=587                                   # padrao
+SMTP_FROM=conta-de-envio@scientificdental.com   # padrao = SMTP_USER
+SMTP_TLS=true                                   # padrao
+SMTP_TIMEOUT=15                                 # segundos, padrao
+```
+
+Notas para Microsoft 365:
+
+- A caixa usada em `SMTP_USER` precisa ter "Authenticated SMTP" (SMTP AUTH)
+  habilitado no admin do Microsoft 365 (Usuario > Email > Manage email apps).
+- Se a conta tiver MFA, gere uma senha de aplicativo e use em `SMTP_PASSWORD`.
+- O `SMTP_FROM` deve ser a propria caixa autenticada (ou uma caixa com
+  permissao "Send As" para ela), senao o Microsoft 365 rejeita o envio.
+
+Teste rapido no servidor (deve imprimir `True`):
+
+```powershell
+python -c "from app import email_service; print(email_service.send_email(['informatica@scientificdental.com'], 'Teste SMTP', 'Teste de envio do Gerenciado Contabil'))"
 ```
 
 Other users open:
@@ -127,6 +164,8 @@ Add environment variables in the task or wrapper script:
 ```text
 DATABASE_URL=sqlite:///C:/data/gerenciado-contabil/controle_contabil.db
 SESSION_SECRET_KEY=replace-with-a-long-random-secret
+SMTP_USER=conta-de-envio@scientificdental.com
+SMTP_PASSWORD=senha-ou-app-password
 ```
 
 Set "Start in" to:
@@ -148,6 +187,8 @@ After=network.target
 WorkingDirectory=/opt/gerenciado-contabil
 Environment=DATABASE_URL=sqlite:////var/lib/gerenciado-contabil/controle_contabil.db
 Environment=SESSION_SECRET_KEY=replace-with-a-long-random-secret
+Environment=SMTP_USER=conta-de-envio@scientificdental.com
+Environment=SMTP_PASSWORD=senha-ou-app-password
 ExecStart=/opt/gerenciado-contabil/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5

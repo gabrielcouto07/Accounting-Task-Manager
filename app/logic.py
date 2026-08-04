@@ -17,6 +17,15 @@ COMPETENCIAS = [
     "Dez/26",
 ]
 
+MESES_ABREV = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+
+
+def competencia_atual() -> str:
+    hoje = date.today()
+    comp = f"{MESES_ABREV[hoje.month - 1]}/{hoje.strftime('%y')}"
+    return comp if comp in COMPETENCIAS else COMPETENCIAS[-1]
+
+
 CATEGORIES = {
     "fiscal": {"label": "Fiscal", "icon": "📋"},
     "contabil": {"label": "Contábil", "icon": "📒"},

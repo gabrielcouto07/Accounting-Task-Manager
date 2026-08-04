@@ -18,6 +18,14 @@ def _smtp_port() -> int:
         return 587
 
 
+def _smtp_timeout() -> float:
+    try:
+        return float(os.getenv("SMTP_TIMEOUT", "15"))
+    except ValueError:
+        logger.warning("SMTP_TIMEOUT invalido; usando 15s")
+        return 15.0
+
+
 def _normalize_recipients(recipients: str | Iterable[str]) -> list[str]:
     if isinstance(recipients, str):
         return [recipients.strip()] if recipients.strip() else []
@@ -33,7 +41,10 @@ def send_email(
 ) -> bool:
     smtp_user = os.getenv("SMTP_USER", "").strip()
     if not smtp_user:
-        logger.warning("SMTP_USER nao configurado; email ignorado.")
+        logger.error(
+            "SMTP_USER nao configurado; email NAO enviado. "
+            "Defina SMTP_USER e SMTP_PASSWORD no ambiente do servico."
+        )
         return False
 
     to_addrs = _normalize_recipients(recipients)
@@ -54,7 +65,7 @@ def send_email(
     if html:
         message.add_alternative(html, subtype="html")
 
-    with smtplib.SMTP(smtp_host, _smtp_port()) as smtp:
+    with smtplib.SMTP(smtp_host, _smtp_port(), timeout=_smtp_timeout()) as smtp:
         if use_tls:
             smtp.starttls()
         if smtp_password:
