@@ -42,6 +42,23 @@ Se o editor estiver mostrando imports vermelhos, garanta que:
 
 O arquivo `pyrightconfig.json` foi adicionado para ajudar o Pylance a resolver `from app import ...`.
 
+## Documentacao
+
+- [docs/ATUALIZACAO_2026-09_EXPLICADA.md](docs/ATUALIZACAO_2026-09_EXPLICADA.md):
+  o que mudou na versao de setembro/2026, por que, e a sintaxe explicada.
+- [docs/deployment_vm_lan.md](docs/deployment_vm_lan.md): deploy e atualizacao na VM.
+- `.env.example`: modelo das variaveis de configuracao.
+
+## Criar usuario pela linha de comando
+
+```powershell
+python scripts\criar_usuario.py --id sirlandia --nome "Sirlandia" --perfil gerente
+python scripts\criar_usuario.py --id joao --nome "Joao Silva" --perfil equipe --categoria fiscal
+```
+
+O usuario nasce com senha provisoria e e obrigado a definir a propria senha no
+primeiro acesso.
+
 ## Deploy em VM da rede local
 
 O guia principal esta em [docs/deployment_vm_lan.md](docs/deployment_vm_lan.md).

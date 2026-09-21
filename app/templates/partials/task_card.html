@@ -36,6 +36,7 @@
         {% if t.vencimento %}<span>⏰ Vencimento: {{ logic.fmt_data(t.vencimento) }}</span>{% endif %}
         {% if t.cliente %}<span>Cliente: {{ t.cliente }}</span>{% endif %}
         {% if t.responsavel %}<span>Responsável: {{ t.responsavel }}</span>{% endif %}
+        {% if t.solicitante %}<span>Solicitante: {{ t.solicitante }}</span>{% endif %}
         <span class="task-conclusao-group">
           Conclusão:
           <input type="date" value="{{ t.data_conclusao.isoformat() if t.data_conclusao else '' }}" onchange="setTaskConclusion({{ t.id }}, this.value)">

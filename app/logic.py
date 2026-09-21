@@ -1,29 +1,66 @@
 from datetime import date
-from typing import Any
+from typing import Any, Iterable
 
-
-COMPETENCIAS = [
-    "Jan/26",
-    "Fev/26",
-    "Mar/26",
-    "Abr/26",
-    "Mai/26",
-    "Jun/26",
-    "Jul/26",
-    "Ago/26",
-    "Set/26",
-    "Out/26",
-    "Nov/26",
-    "Dez/26",
-]
 
 MESES_ABREV = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+
+# Quantos anos para tras / para frente a lista de competencias cobre a partir
+# do ano corrente. A lista e SEMPRE calculada na hora: antes ela era uma
+# constante fixa de 2026 e o sistema quebrava a virada do ano.
+COMP_ANOS_ATRAS = 1
+COMP_ANOS_FRENTE = 1
+
+
+def format_competencia(ano: int, mes: int) -> str:
+    """(2026, 6) -> 'Jun/26'."""
+    return f"{MESES_ABREV[mes - 1]}/{str(ano)[-2:]}"
+
+
+def parse_competencia(competencia: str | None) -> tuple[int, int] | None:
+    """'Jun/26' -> (2026, 6). Retorna None se o texto nao for reconhecido."""
+    if not competencia or "/" not in competencia:
+        return None
+    mes_txt, _, ano_txt = competencia.partition("/")
+    mes_txt = mes_txt.strip().capitalize()
+    ano_txt = ano_txt.strip()
+    if mes_txt not in MESES_ABREV or not ano_txt.isdigit():
+        return None
+    ano = int(ano_txt)
+    if ano < 100:
+        ano += 2000
+    return ano, MESES_ABREV.index(mes_txt) + 1
+
+
+def comp_sort_key(competencia: str) -> tuple[int, int, str]:
+    """Ordena competencias cronologicamente; valores estranhos vao para o fim."""
+    parsed = parse_competencia(competencia)
+    if not parsed:
+        return (9999, 99, competencia or "")
+    return (parsed[0], parsed[1], "")
 
 
 def competencia_atual() -> str:
     hoje = date.today()
-    comp = f"{MESES_ABREV[hoje.month - 1]}/{hoje.strftime('%y')}"
-    return comp if comp in COMPETENCIAS else COMPETENCIAS[-1]
+    return format_competencia(hoje.year, hoje.month)
+
+
+def competencias_padrao(hoje: date | None = None) -> list[str]:
+    """Janela rolante de competencias em torno do ano corrente."""
+    hoje = hoje or date.today()
+    anos = range(hoje.year - COMP_ANOS_ATRAS, hoje.year + COMP_ANOS_FRENTE + 1)
+    return [format_competencia(ano, mes) for ano in anos for mes in range(1, 13)]
+
+
+def montar_competencias(existentes: Iterable[str] | None = None) -> list[str]:
+    """Janela padrao + competencias que ja existem no banco, sem duplicar."""
+    valores = set(competencias_padrao())
+    valores.update(comp for comp in (existentes or []) if comp)
+    return sorted(valores, key=comp_sort_key)
+
+
+# Mantido por compatibilidade com codigo/scripts antigos. Prefira
+# `montar_competencias()` (que inclui o que ja existe no banco).
+COMPETENCIAS = competencias_padrao()
 
 
 CATEGORIES = {
@@ -110,10 +147,12 @@ def pri_order(priority: str) -> int:
 
 
 def next_comp(competencia: str) -> str:
-    if competencia not in COMPETENCIAS:
-        return COMPETENCIAS[0]
-    index = COMPETENCIAS.index(competencia)
-    return COMPETENCIAS[(index + 1) % len(COMPETENCIAS)]
+    """Competencia seguinte. Dez/26 -> Jan/27 (antes voltava para Jan/26)."""
+    parsed = parse_competencia(competencia)
+    if not parsed:
+        return competencia_atual()
+    ano, mes = parsed
+    return format_competencia(ano + 1, 1) if mes == 12 else format_competencia(ano, mes + 1)
 
 
 def initials(nome: str) -> str:
@@ -255,30 +294,34 @@ def group_extras_by_user(tasks: list[Any]) -> list[tuple[str, list[Any]]]:
 
 
 def group_tasks(tasks: list[Any]) -> list[tuple[str, str, str, list[Any], str]]:
-    extras = [task for task in tasks if task.tipo == "extraordinaria" and task.status != "concluida"]
-    vencidas = [
-        task
-        for task in tasks
-        if (restante := dias_restantes(task.vencimento)) is not None
-        and restante < 0
-        and task.status != "concluida"
-        and task not in extras
-    ]
-    vencendo = [
-        task
-        for task in tasks
-        if (restante := dias_restantes(task.vencimento)) is not None
-        and 0 <= restante <= 7
-        and task.status != "concluida"
-        and task not in extras
-        and task not in vencidas
-    ]
-    abertas = [
-        task
-        for task in tasks
-        if task.status != "concluida" and task not in extras and task not in vencidas and task not in vencendo
-    ]
-    concluidas = [task for task in tasks if task.status == "concluida"]
+    """Distribui as tarefas nos 5 grupos do dashboard, cada tarefa em um grupo so.
+
+    A versao anterior usava `task not in extras`, que faz busca linear em lista
+    (O(n^2) e compara objetos). Aqui cada tarefa passa por um unico `if/elif`.
+    """
+    extras: list[Any] = []
+    vencidas: list[Any] = []
+    vencendo: list[Any] = []
+    abertas: list[Any] = []
+    concluidas: list[Any] = []
+
+    for task in tasks:
+        if task.status == "concluida":
+            concluidas.append(task)
+            continue
+        if task.tipo == "extraordinaria":
+            extras.append(task)
+            continue
+
+        restante = dias_restantes(task.vencimento)
+        if restante is None:
+            abertas.append(task)
+        elif restante < 0:
+            vencidas.append(task)
+        elif restante <= 7:
+            vencendo.append(task)
+        else:
+            abertas.append(task)
 
     return [
         ("extra", "⚡", "Extraordinárias", sort_tasks(extras), "g-extra"),

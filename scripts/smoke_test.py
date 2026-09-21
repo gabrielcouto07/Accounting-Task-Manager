@@ -96,6 +96,26 @@ def main() -> None:
                 )
                 assert replicated.status_code == 200
 
+                # --- filtros novos do dashboard --------------------------
+                # A tarefa foi criada pelo usuario logado, entao o solicitante
+                # gravado deve ser o nome dele.
+                with_filter = client.get(
+                    "/dashboard",
+                    params={"responsavel": "Equipe Teste", "solicitante": "Gerente"},
+                )
+                assert with_filter.status_code == 200
+                assert "Smoke test atualizado" in with_filter.text
+
+                sem_resultado = client.get(
+                    "/dashboard",
+                    params={"responsavel": "nao-existe-ninguem-assim"},
+                )
+                assert sem_resultado.status_code == 200
+                assert "Smoke test atualizado" not in sem_resultado.text
+
+                sem_responsavel = client.get("/dashboard", params={"responsavel": "__sem__"})
+                assert sem_responsavel.status_code == 200
+
                 created_user = client.post(
                     "/api/users",
                     json={
@@ -111,11 +131,76 @@ def main() -> None:
                 deleted = client.delete(f"/api/tasks/{task_id}")
                 assert deleted.status_code == 200
 
+            # --- troca de senha obrigatoria no primeiro acesso -------------
+            with TestClient(app) as novo:
+                login = novo.post(
+                    "/login",
+                    data={"user_id": "smoke.user", "senha": "123456"},
+                    follow_redirects=False,
+                )
+                assert login.status_code == 303
+                assert login.headers.get("location") == "/trocar-senha"
+
+                # Enquanto nao trocar, qualquer tela leva de volta para la.
+                bloqueado = novo.get("/dashboard", follow_redirects=False)
+                assert bloqueado.status_code == 303
+                assert bloqueado.headers.get("location") == "/trocar-senha"
+
+                # A propria tela de troca precisa abrir.
+                assert novo.get("/trocar-senha").status_code == 200
+
+                # Senha atual errada nao passa.
+                errada = novo.post(
+                    "/trocar-senha",
+                    data={
+                        "senha_atual": "errada",
+                        "senha": "novaSenha123",
+                        "confirmar_senha": "novaSenha123",
+                    },
+                    follow_redirects=False,
+                )
+                assert errada.headers.get("location") == "/trocar-senha"
+                assert novo.get("/dashboard", follow_redirects=False).status_code == 303
+
+                trocada = novo.post(
+                    "/trocar-senha",
+                    data={
+                        "senha_atual": "123456",
+                        "senha": "novaSenha123",
+                        "confirmar_senha": "novaSenha123",
+                    },
+                    follow_redirects=False,
+                )
+                assert trocada.status_code == 303
+                assert trocada.headers.get("location") == "/dashboard"
+                assert novo.get("/dashboard").status_code == 200
+
+            with TestClient(app) as relogin:
+                ok = relogin.post(
+                    "/login",
+                    data={"user_id": "smoke.user", "senha": "novaSenha123"},
+                    follow_redirects=False,
+                )
+                assert ok.headers.get("location") == "/dashboard"
+
             db = SessionLocal()
             try:
                 gerente = db.get(models.User, "gerente")
                 assert gerente is not None
                 assert security.is_hashed_password(gerente.senha)
+                assert gerente.must_change_password is False
+
+                smoke_user = db.get(models.User, "smoke.user")
+                assert smoke_user is not None
+                assert smoke_user.must_change_password is False  # ja trocou
+
+                # Nenhuma senha pode ficar em texto puro no banco.
+                for registro in db.query(models.User).all():
+                    assert security.is_hashed_password(registro.senha), registro.id
+
+                # Solicitante gravado na criacao.
+                criadas = db.query(models.Task).filter(models.Task.solicitante.isnot(None)).count()
+                assert criadas > 0
             finally:
                 db.close()
         finally:

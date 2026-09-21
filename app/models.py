@@ -13,6 +13,14 @@ class User(Base):
     perfil = Column(String, nullable=False)
     categoria = Column(String, nullable=True)
     cor = Column(String, default="#1e3a5f", nullable=False)
+    # Quando True, o usuario e obrigado a definir uma nova senha antes de usar o
+    # sistema (primeiro acesso ou reset feito pelo gerente).
+    must_change_password = Column(
+        Boolean,
+        default=False,
+        server_default=text("0"),
+        nullable=False,
+    )
 
 
 class Task(Base):
@@ -32,6 +40,9 @@ class Task(Base):
     data_conclusao = Column(Date, nullable=True)
     cliente = Column(String, nullable=True)
     responsavel = Column(String, nullable=True)
+    # Preenchido automaticamente com o nome de quem criou a obrigacao.
+    # Fica nulo nas tarefas criadas antes desta versao.
+    solicitante = Column(String, nullable=True)
     obs = Column(String, nullable=True)
     created_at = Column(Date, nullable=True)
     legacy_raw = Column(Text, nullable=True)

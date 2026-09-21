@@ -60,7 +60,7 @@ function resetTaskForm() {
   setFieldValue('f-categoria', byId('f-categoria')?.options[0]?.value || '');
   setFieldValue('f-prioridade', 'normal');
   setFieldValue('f-status', 'pendente');
-  setFieldValue('f-competencia', appData.dashMonth || 'Jun/26');
+  setFieldValue('f-competencia', appData.dashMonth || (appData.competencias || [])[0] || '');
   setFieldValue('f-liberacao', '');
   setFieldValue('f-vencimento', '');
   setFieldValue('f-cliente', '');
@@ -116,11 +116,23 @@ function renderFormSubtasks() {
     const lib = subtask.liberacao ? ` · Lib: ${subtask.liberacao === 'NA' ? 'N/A' : subtask.liberacao}` : '';
     const venc = subtask.vencimento ? ` · Venc: ${subtask.vencimento}` : '';
     const resp = subtask.responsavel ? ` · ${subtask.responsavel}` : '';
-    item.innerHTML = `
-      <div class="st-check-preview"></div>
-      <span>${subtask.titulo}${resp}${lib}${venc}</span>
-      <button class="btn-remove-st" type="button" onclick="removeSubtaskFromForm(${index})">×</button>
-    `;
+
+    // Montado com createElement/textContent em vez de innerHTML: o titulo e a
+    // responsavel sao texto digitado pelo usuario. Com innerHTML, um titulo
+    // como <img onerror=...> viraria HTML executavel (XSS armazenado).
+    const check = document.createElement('div');
+    check.className = 'st-check-preview';
+
+    const label = document.createElement('span');
+    label.textContent = `${subtask.titulo}${resp}${lib}${venc}`;
+
+    const remove = document.createElement('button');
+    remove.className = 'btn-remove-st';
+    remove.type = 'button';
+    remove.textContent = '×';
+    remove.addEventListener('click', () => removeSubtaskFromForm(index));
+
+    item.append(check, label, remove);
     list.appendChild(item);
   });
 }
@@ -172,7 +184,7 @@ function collectTaskPayload() {
     tipo: fieldValue('f-tipo') || 'rotina',
     prioridade: fieldValue('f-prioridade') || 'normal',
     status,
-    competencia: fieldValue('f-competencia') || 'Jun/26',
+    competencia: fieldValue('f-competencia') || appData.dashMonth || '',
     liberacao: nullableDate(fieldValue('f-liberacao')),
     vencimento: nullableDate(fieldValue('f-vencimento')),
     data_conclusao: status === 'concluida' ? (uiState.currentTaskCompletion || todayIso()) : null,
@@ -516,7 +528,9 @@ async function deleteUser(userId) {
 }
 
 function setCategoryTab(value) {
-  goWithParams({ cat_tab: value, categoria: 'todas' });
+  // Ao trocar de aba os responsaveis disponiveis mudam, entao o filtro por
+  // pessoa e zerado para nao sobrar um nome que nao existe na nova lista.
+  goWithParams({ cat_tab: value, categoria: 'todas', responsavel: '', solicitante: '' });
 }
 
 function setStatusFilter(value) {
@@ -524,12 +538,20 @@ function setStatusFilter(value) {
 }
 
 function applyFilters() {
+  // Valor vazio faz withParams() remover o parametro da URL, entao "Todos"
+  // simplesmente some do endereco em vez de virar ?responsavel=.
   goWithParams({
     categoria: fieldValue('fil-categoria'),
     tipo: fieldValue('fil-tipo'),
     prioridade: fieldValue('fil-prioridade'),
+    responsavel: fieldValue('fil-responsavel'),
+    solicitante: fieldValue('fil-solicitante'),
     busca: fieldValue('fil-busca'),
   });
+}
+
+function clearPeopleFilters() {
+  goWithParams({ responsavel: '', solicitante: '' });
 }
 
 function handleSearchKey(event) {

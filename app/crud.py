@@ -99,10 +99,58 @@ def ensure_schema(db: Session) -> None:
                     reset=False,
                 )
 
+        # Coluna nova (2026-09): quem abriu a obrigacao. Fica NULL nas
+        # tarefas antigas, o que e esperado e nao quebra nada.
+        _ensure_column(db, "tasks", task_columns, "solicitante", "solicitante VARCHAR")
+
+    user_columns = _column_names(db, "users")
+    if user_columns:
+        # Coluna nova (2026-09): forca troca de senha no primeiro acesso.
+        # DEFAULT 0 => nenhum usuario que ja existe e afetado.
+        _ensure_column(
+            db,
+            "users",
+            user_columns,
+            "must_change_password",
+            "must_change_password BOOLEAN NOT NULL DEFAULT 0",
+        )
+        db.execute(
+            text("UPDATE users SET must_change_password = 0 WHERE must_change_password IS NULL")
+        )
+
     subtask_columns = _column_names(db, "subtasks")
     if subtask_columns and "legacy_id" not in subtask_columns:
         db.execute(text("ALTER TABLE subtasks ADD COLUMN legacy_id TEXT"))
+
+    # Indices auxiliares. CREATE INDEX IF NOT EXISTS e idempotente e barato.
+    for ddl in (
+        "CREATE INDEX IF NOT EXISTS ix_tasks_competencia ON tasks (competencia)",
+        "CREATE INDEX IF NOT EXISTS ix_tasks_categoria ON tasks (categoria)",
+        "CREATE INDEX IF NOT EXISTS ix_tasks_status ON tasks (status)",
+        "CREATE INDEX IF NOT EXISTS ix_subtasks_task_id ON subtasks (task_id)",
+    ):
+        db.execute(text(ddl))
+
     db.flush()
+
+
+def upgrade_plaintext_passwords(db: Session) -> int:
+    """Converte senhas gravadas em texto puro para hash PBKDF2.
+
+    O banco herdado do sistema antigo guardava a senha literal. O login ja
+    fazia o upgrade quando a pessoa entrava, mas quem nunca entrou continuava
+    com a senha legivel no arquivo .db. Aqui isso e resolvido de uma vez.
+    A senha da pessoa NAO muda - muda apenas a forma de guardar.
+    """
+    convertidos = 0
+    for user in db.query(models.User).all():
+        if security.is_hashed_password(user.senha):
+            continue
+        user.senha = security.hash_password(user.senha or "")
+        convertidos += 1
+    if convertidos:
+        db.flush()
+    return convertidos
 
 
 def get_users(db: Session) -> list[models.User]:
@@ -125,7 +173,12 @@ def authenticate_user(db: Session, user_id: str, senha: str) -> models.User | No
     return user
 
 
-def create_user(db: Session, data: schemas.UserCreate, cor: str) -> models.User:
+def create_user(
+    db: Session,
+    data: schemas.UserCreate,
+    cor: str,
+    must_change_password: bool = True,
+) -> models.User:
     user = models.User(
         id=data.id.strip(),
         nome=data.nome.strip(),
@@ -133,6 +186,7 @@ def create_user(db: Session, data: schemas.UserCreate, cor: str) -> models.User:
         perfil=data.perfil,
         categoria=None if data.perfil == "gerente" else data.categoria,
         cor=cor,
+        must_change_password=must_change_password,
     )
     db.add(user)
     db.commit()
@@ -140,13 +194,30 @@ def create_user(db: Session, data: schemas.UserCreate, cor: str) -> models.User:
     return user
 
 
-def change_user_password(db: Session, user_id: str, senha: str) -> bool:
+def change_user_password(
+    db: Session,
+    user_id: str,
+    senha: str,
+    *,
+    must_change_password: bool = False,
+) -> bool:
+    """Grava uma nova senha (sempre com hash).
+
+    `must_change_password=True` e usado quando o GERENTE reseta a senha de
+    outra pessoa: o dono da conta sera obrigado a trocar no proximo acesso.
+    Quando a propria pessoa troca a senha, o flag e desligado.
+    """
     user = get_user(db, user_id)
     if not user:
         return False
     user.senha = security.hash_password(senha)
+    user.must_change_password = must_change_password
     db.commit()
     return True
+
+
+def count_gerentes(db: Session) -> int:
+    return db.query(models.User).filter(models.User.perfil == "gerente").count()
 
 
 def delete_user(db: Session, user_id: str) -> bool:
@@ -214,17 +285,55 @@ def _tasks_query(db: Session):
     return db.query(models.Task).options(selectinload(models.Task.subtarefas))
 
 
+def _scope_conditions(current_user: models.User, categoria_tab: str = "todas") -> list:
+    """Restricoes de visibilidade: gerente ve tudo (ou a aba escolhida),
+    usuario de equipe ve apenas a propria categoria."""
+    if current_user.perfil != "gerente":
+        return [models.Task.categoria == current_user.categoria]
+    if categoria_tab != "todas":
+        return [models.Task.categoria == categoria_tab]
+    return []
+
+
 def scoped_tasks_query(
     db: Session,
     current_user: models.User,
     categoria_tab: str = "todas",
 ):
     query = _tasks_query(db)
-    if current_user.perfil == "gerente":
-        if categoria_tab != "todas":
-            query = query.filter(models.Task.categoria == categoria_tab)
+    for condicao in _scope_conditions(current_user, categoria_tab):
+        query = query.filter(condicao)
+    return query
+
+
+SEM_VALOR = "__sem__"
+
+
+def _escape_like(valor: str) -> str:
+    """Neutraliza os coringas do LIKE para que % e _ sejam texto literal."""
+    return valor.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _filtrar_por_pessoa(query, coluna, valor: str, *, contem: bool):
+    """Aplica o filtro de responsavel/solicitante sobre uma coluna de texto.
+
+    `contem=True` usa LIKE %valor% porque o campo Responsavel e texto livre e
+    no banco existem registros como "ISABELLE E MARESSA" ou "ISABELLE, MARESSA".
+    Com igualdade exata, escolher "ISABELLE" perderia essas linhas.
+    """
+    valor = (valor or "").strip()
+    if not valor:
         return query
-    return query.filter(models.Task.categoria == current_user.categoria)
+    if valor == SEM_VALOR:
+        return query.filter(or_(coluna.is_(None), coluna == ""))
+    padrao = _escape_like(valor)
+    alvo = f"%{padrao}%" if contem else padrao
+    return query.filter(coluna.ilike(alvo, escape="\\"))
+
+
+def aplicar_filtros_pessoa(query, responsavel: str = "", solicitante: str = ""):
+    query = _filtrar_por_pessoa(query, models.Task.responsavel, responsavel, contem=True)
+    return _filtrar_por_pessoa(query, models.Task.solicitante, solicitante, contem=False)
 
 
 def get_filtered_tasks(
@@ -236,6 +345,8 @@ def get_filtered_tasks(
     tipo: str = "todos",
     prioridade: str = "todas",
     busca: str = "",
+    responsavel: str = "",
+    solicitante: str = "",
 ) -> list[models.Task]:
     query = scoped_tasks_query(db, current_user, categoria_tab)
 
@@ -248,16 +359,50 @@ def get_filtered_tasks(
     if prioridade != "todas":
         query = query.filter(models.Task.prioridade == prioridade)
     if busca:
-        like = f"%{busca.strip()}%"
+        like = f"%{_escape_like(busca.strip())}%"
         query = query.filter(
             or_(
-                models.Task.titulo.ilike(like),
-                models.Task.cliente.ilike(like),
-                models.Task.responsavel.ilike(like),
+                models.Task.titulo.ilike(like, escape="\\"),
+                models.Task.cliente.ilike(like, escape="\\"),
+                models.Task.responsavel.ilike(like, escape="\\"),
             )
         )
 
+    query = aplicar_filtros_pessoa(query, responsavel, solicitante)
     return query.all()
+
+
+def _valores_distintos(db: Session, current_user: models.User, categoria_tab: str, coluna) -> list[str]:
+    """Valores unicos de uma coluna de texto, dentro do escopo do usuario.
+
+    Usado para montar as opcoes dos selects de Responsavel e Solicitante.
+    Duplicatas que diferem so por caixa/espaco ("Isabelle" x "ISABELLE") sao
+    agrupadas, mantendo a primeira grafia encontrada.
+    """
+    # Query "crua" de uma coluna so: nao reaproveita scoped_tasks_query porque
+    # aquela carrega as subtarefas (selectinload), inutil aqui.
+    base = db.query(coluna).distinct()
+    for condicao in _scope_conditions(current_user, categoria_tab):
+        base = base.filter(condicao)
+    vistos: dict[str, str] = {}
+    for (valor,) in base:
+        texto = (valor or "").strip()
+        if not texto:
+            continue
+        vistos.setdefault(texto.casefold(), texto)
+    return sorted(vistos.values(), key=str.casefold)
+
+
+def listar_responsaveis(db: Session, current_user: models.User, categoria_tab: str = "todas") -> list[str]:
+    return _valores_distintos(db, current_user, categoria_tab, models.Task.responsavel)
+
+
+def listar_solicitantes(db: Session, current_user: models.User, categoria_tab: str = "todas") -> list[str]:
+    return _valores_distintos(db, current_user, categoria_tab, models.Task.solicitante)
+
+
+def competencias_existentes(db: Session) -> list[str]:
+    return [row[0] for row in db.query(models.Task.competencia).distinct() if row[0]]
 
 
 def get_task(db: Session, task_id: int) -> models.Task | None:
@@ -309,8 +454,18 @@ def _replace_subtasks(
         )
 
 
-def create_task(db: Session, task_data: schemas.TaskCreate) -> models.Task:
-    task = models.Task(created_at=date.today(), legacy_data="{}")
+def create_task(
+    db: Session,
+    task_data: schemas.TaskCreate,
+    solicitante: str | None = None,
+) -> models.Task:
+    """Cria a obrigacao. `solicitante` e gravado uma unica vez, na criacao,
+    e nao e alterado depois por `update_task`."""
+    task = models.Task(
+        created_at=date.today(),
+        legacy_data="{}",
+        solicitante=(solicitante or "").strip() or None,
+    )
     _apply_task_fields(task, task_data)
     db.add(task)
     db.flush()
@@ -400,6 +555,7 @@ def replicate_task(
         vencimento=None,
         cliente=original.cliente,
         responsavel=original.responsavel,
+        solicitante=original.solicitante,
         obs=original.obs,
         created_at=date.today(),
         legacy_data="{}",

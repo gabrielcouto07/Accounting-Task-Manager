@@ -171,9 +171,15 @@ Add environment variables in the task or wrapper script:
 ```text
 DATABASE_URL=sqlite:///C:/data/gerenciado-contabil/controle_contabil.db
 SESSION_SECRET_KEY=replace-with-a-long-random-secret
+SESSION_MAX_AGE=43200
 SMTP_USER=conta-de-envio@scientificdental.com
 SMTP_PASSWORD=senha-ou-app-password
 ```
+
+Se `SESSION_SECRET_KEY` nao for definida, a aplicacao gera uma chave aleatoria
+e a grava em `.session_secret` na raiz do projeto (o arquivo nao vai para o
+git). Prefira definir a variavel: assim a chave nao se perde quando a pasta do
+codigo for substituida.
 
 Set "Start in" to:
 
@@ -227,6 +233,58 @@ Back up legacy SQLite files only if you still need the original source:
 ```powershell
 python scripts\backup_legacy_sqlite.py
 ```
+
+## Atualizacao de Setembro/2026 (novos campos e telas)
+
+Esta versao adiciona **duas colunas novas** e **uma tela nova**. Nada e apagado
+nem reescrito: a aplicacao roda `ALTER TABLE ... ADD COLUMN` na inicializacao,
+sozinha, e as linhas que ja existem ficam com o valor padrao.
+
+| Objeto | O que acontece no banco existente |
+| --- | --- |
+| `users.must_change_password` | Coluna nova, `DEFAULT 0`. Todo mundo que ja usa o sistema continua entrando normalmente. |
+| `tasks.solicitante` | Coluna nova, aceita nulo. Tarefas antigas ficam sem solicitante e aparecem em "Sem solicitante". |
+| Indices `ix_tasks_*`, `ix_subtasks_task_id` | Criados com `IF NOT EXISTS`. So aceleram consultas. |
+| Senhas em texto puro | Convertidas para hash PBKDF2 na primeira inicializacao. **A senha da pessoa nao muda** - muda apenas como ela e guardada no arquivo `.db`. |
+
+Passo a passo na VM:
+
+```powershell
+# 1. Parar o servico (Task Scheduler ou fechar a janela do uvicorn)
+
+# 2. Backup do banco de producao - NAO PULE ESTA ETAPA
+$env:DATABASE_URL = "sqlite:///C:/data/gerenciado-contabil/controle_contabil.db"
+cd "C:\apps\gerenciado-contabil"
+python scripts\backup_app_db.py
+
+# 3. Substituir a pasta do codigo (app\, scripts\, docs\, requirements.txt)
+#    O banco esta em C:\data\..., entao trocar o codigo nao encosta nos dados.
+
+# 4. Dependencias (nao mudaram nesta versao, mas rodar e barato)
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# 5. Subir o servico e conferir
+#    O log deve mostrar "N senha(s) em texto puro convertida(s) para hash."
+```
+
+Depois de subir, criar a usuaria da diretoria:
+
+```powershell
+$env:DATABASE_URL = "sqlite:///C:/data/gerenciado-contabil/controle_contabil.db"
+python scripts\criar_usuario.py --id sirlandia --nome "Sirlandia" --perfil gerente --senha "Diretoria@2026"
+```
+
+Entregue a senha provisoria para ela. No primeiro login o sistema exige a troca.
+
+### Como voltar atras (rollback)
+
+As colunas novas sao ignoradas pela versao antiga do codigo, entao basta
+restaurar a pasta de codigo anterior. Se precisar voltar tambem os dados,
+restaure o arquivo gerado em `backups/app_sqlite/` por cima do banco de
+producao **com o servico parado**. O unico ponto sem volta e o hash das
+senhas: quem tinha senha em texto puro continua entrando com a mesma senha,
+mas o valor literal nao volta a aparecer no arquivo `.db`.
 
 ## Safe Update Flow
 

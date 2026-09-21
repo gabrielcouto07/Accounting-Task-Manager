@@ -65,6 +65,8 @@ button, select, input, textarea { font-family: inherit; }
 #btn-manage-users:hover { background:rgba(255,255,255,.2); }
 #btn-chamados { padding:7px 12px; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; font-size:12px; cursor:pointer; }
 #btn-chamados:hover { background:rgba(255,255,255,.2); }
+#btn-senha { padding:7px 12px; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; font-size:12px; cursor:pointer; }
+#btn-senha:hover { background:rgba(255,255,255,.2); }
 
 /* Server-rendered admin pages */
 .server-flashes { position:fixed; right:16px; top:16px; z-index:2500; display:grid; gap:8px; max-width:min(360px, calc(100vw - 32px)); }
@@ -179,6 +181,10 @@ input[type=date]:disabled { background:#f3f4f6; color:#9ca3af; cursor:not-allowe
 .filter-row { display:flex; gap:8px; flex-wrap:wrap; }
 .filter-row select, .filter-row input { padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; font-size:12px; outline:none; background:#fff; color:#374151; }
 .filter-row input { flex:1; min-width:160px; }
+/* Aviso de filtro por pessoa ativo (responsavel / solicitante) */
+.filter-active-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.filter-active-tag { font-size:12px; color:#6b7280; background:#f8fafc; border:1px solid #e5e7eb; border-radius:20px; padding:5px 12px; }
+.filter-active-tag strong { color:#1e3a5f; }
 
 /* Tasks */
 #result-count { font-size:12px; color:#6b7280; margin-bottom:8px; font-weight:500; }
