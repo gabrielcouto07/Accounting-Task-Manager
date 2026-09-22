@@ -211,9 +211,6 @@ async function saveTask() {
   const url = id ? `/api/tasks/${id}` : '/api/tasks';
   const result = await apiCall(url, method, payload);
   if (result) {
-    if (result.email_sent === false) {
-      setPendingFlash('Salvo, mas o e-mail de aviso da extraordinária NÃO foi enviado');
-    }
     flash('✓ Salvo');
     reload();
   }

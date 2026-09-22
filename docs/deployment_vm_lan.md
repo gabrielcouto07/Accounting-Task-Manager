@@ -105,9 +105,6 @@ SMTP_PORT=587                                   # padrao
 SMTP_FROM=conta-de-envio@scientificdental.com   # padrao = SMTP_USER
 SMTP_TLS=true                                   # padrao
 SMTP_TIMEOUT=15                                 # segundos, padrao
-EXTRA_TASK_EMAILS=a@dominio.com,b@dominio.com   # quem recebe aviso de nova tarefa
-                                                # extraordinaria; sem definir, usa os
-                                                # mesmos enderecos dos chamados
 ```
 
 As variaveis tambem podem ser definidas em um arquivo `.env` na raiz do

@@ -96,13 +96,6 @@ CHAMADO_RECIPIENTS = [
     "apoio.informatica@scientificdental.com",
     "informatica@scientificdental.com",
 ]
-EXTRA_TASK_RECIPIENTS = [
-    email.strip()
-    for email in os.getenv("EXTRA_TASK_EMAILS", "").split(",")
-    if email.strip()
-] or CHAMADO_RECIPIENTS
-
-
 def _redirect(path: str) -> RedirectResponse:
     return RedirectResponse(path, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -150,31 +143,6 @@ def _send_chamado_email(chamado: models.Chamado) -> bool:
         return email_service.send_email(CHAMADO_RECIPIENTS, subject, body)
     except Exception:
         logger.exception("Falha ao enviar notificacao do chamado %s", chamado.id)
-        return False
-
-
-def _send_extraordinaria_email(task: models.Task, criador: models.User) -> bool:
-    categoria = logic.CATEGORIES.get(task.categoria, {}).get("label", task.categoria)
-    prioridade = logic.PRIORIDADES.get(task.prioridade, {}).get("label", task.prioridade)
-    subject = f"[Extraordinaria] {task.titulo}"
-    body = (
-        "Nova tarefa extraordinaria criada no Gerenciado Contabil.\n\n"
-        f"Titulo: {task.titulo}\n"
-        f"Categoria: {categoria}\n"
-        f"Prioridade: {prioridade}\n"
-        f"Competencia: {task.competencia}\n"
-        f"Responsavel: {task.responsavel or '-'}\n"
-        f"Cliente: {task.cliente or '-'}\n"
-        f"Vencimento: {logic.fmt_data(task.vencimento)}\n"
-        f"Criada por: {criador.nome}\n"
-        + (f"Observacoes: {task.obs}\n" if task.obs else "")
-        + "\nAcesse o sistema para mais detalhes.\n"
-    )
-
-    try:
-        return email_service.send_email(EXTRA_TASK_RECIPIENTS, subject, body)
-    except Exception:
-        logger.exception("Falha ao enviar notificacao da tarefa extraordinaria %s", task.id)
         return False
 
 
@@ -701,10 +669,7 @@ def api_create_task(
         data = data.model_copy(update={"categoria": user.categoria})
     # Solicitante = quem esta criando. Gravado so aqui; update_task nao mexe.
     task = crud.create_task(db, data, solicitante=user.nome)
-    email_sent = None
-    if task.tipo == "extraordinaria":
-        email_sent = _send_extraordinaria_email(task, user)
-    return {"ok": True, "id": task.id, "email_sent": email_sent}
+    return {"ok": True, "id": task.id}
 
 
 @app.put("/api/tasks/{task_id}")
